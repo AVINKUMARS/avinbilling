@@ -24,11 +24,15 @@ export const Bom = model('Bom', bomSchema);
 
 const invoiceSchema = new Schema({
   ...tenantFields, invoiceNumber: { type: String, required: true }, quoteId: { type: Schema.Types.ObjectId, ref: 'Quote', required: true, index: true }, clientSnapshot: Schema.Types.Mixed,
-  lineItems: [Schema.Types.Mixed], subtotalPaise: Number, cgstPaise: Number, sgstPaise: Number, igstPaise: Number, grandTotalPaise: Number, paidPaise: Number, balancePaise: Number,
+  lineItems: [Schema.Types.Mixed], taxMode: { type: String, enum: ['cgst_sgst', 'igst'], default: 'cgst_sgst' }, gstPercent: { type: Number, default: 18 }, placeOfSupply: String, subtotalPaise: Number, discountPaise: Number, taxablePaise: Number, cgstPaise: Number, sgstPaise: Number, igstPaise: Number, grandTotalPaise: Number, paidPaise: Number, creditedPaise: { type: Number, default: 0 }, balancePaise: Number,
   status: { type: String, enum: ['draft', 'issued', 'part_paid', 'paid', 'cancelled'], default: 'draft' }, issuedAt: Date, dueAt: Date,
 }, { timestamps: true });
 invoiceSchema.index({ organizationId: 1, invoiceNumber: 1 }, { unique: true });
 export const Invoice = model('Invoice', invoiceSchema);
+
+const creditNoteSchema = new Schema({ ...tenantFields, creditNoteNumber: { type: String, required: true }, invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true }, quoteId: { type: Schema.Types.ObjectId, ref: 'Quote', required: true }, reason: { type: String, required: true }, amountPaise: { type: Number, required: true, min: 1 }, status: { type: String, enum: ['issued', 'cancelled'], default: 'issued' }, issuedAt: { type: Date, default: Date.now } }, { timestamps: true });
+creditNoteSchema.index({ organizationId: 1, creditNoteNumber: 1 }, { unique: true });
+export const CreditNote = model('CreditNote', creditNoteSchema);
 
 const supplierSchema = new Schema({ ...tenantFields, supplierCode: String, name: { type: String, required: true }, phone: String, email: String, gstin: String, address: String, isActive: { type: Boolean, default: true } }, { timestamps: true });
 supplierSchema.index({ organizationId: 1, supplierCode: 1 }, { unique: true });
