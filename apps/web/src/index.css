@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #18201d;
+  background: #f4f7f5;
+  font-synthesis: none;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+::selection {
+  background: #b9ebd9;
+  color: #123d38;
+}
+
+.theme-app {
+  background-color: var(--theme-background, #f4f7f5) !important;
+  font-family: var(--theme-font, Inter, ui-sans-serif, system-ui, sans-serif);
+}
+.theme-app .theme-sidebar { background-color: var(--theme-sidebar, #020617) !important; }
+.theme-app .bg-brand-600, .theme-app .bg-brand-500 { background-color: var(--theme-primary, #0f766e) !important; }
+.theme-app .text-brand-600, .theme-app .text-brand-700 { color: var(--theme-primary, #0f766e) !important; }
+.theme-app .border-brand-500, .theme-app .border-brand-600 { border-color: var(--theme-primary, #0f766e) !important; }
+.theme-app .ring-brand-100 { --tw-ring-color: color-mix(in srgb, var(--theme-primary, #0f766e) 20%, white) !important; }
+.theme-app .bg-white { background-color: var(--theme-surface, #ffffff); }
+.theme-app[data-radius="compact"] .rounded-xl,
+.theme-app[data-radius="compact"] .rounded-2xl,
+.theme-app[data-radius="compact"] .rounded-3xl { border-radius: 0.35rem !important; }
+.theme-app[data-radius="soft"] .rounded-xl,
+.theme-app[data-radius="soft"] .rounded-2xl,
+.theme-app[data-radius="soft"] .rounded-3xl { border-radius: 1.5rem !important; }
+.theme-app[data-density="compact"] nav button { padding-top: 0.55rem !important; padding-bottom: 0.55rem !important; }

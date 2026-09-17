@@ -1,0 +1,25 @@
+{
+  "name": "avin-business-suite",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A modular, multi-organization business operations platform.",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/industry-packs/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,green \"npm run dev -w @meera/web\" \"npm run dev -w @meera/api\"",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
