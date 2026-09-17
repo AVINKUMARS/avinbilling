@@ -46,6 +46,14 @@ const stockItemSchema = new Schema({ ...tenantFields, catalogItemId: { type: Sch
 stockItemSchema.index({ organizationId: 1, catalogItemId: 1, warehouse: 1 }, { unique: true });
 export const StockItem = model('StockItem', stockItemSchema);
 
+const stockMovementSchema = new Schema({ ...tenantFields, movementNumber: String, catalogItemId: { type: Schema.Types.ObjectId, ref: 'CatalogItem', required: true }, projectId: { type: Schema.Types.ObjectId, ref: 'Project' }, purchaseOrderId: { type: Schema.Types.ObjectId, ref: 'PurchaseOrder' }, type: { type: String, enum: ['receipt', 'transfer', 'allocation', 'return', 'adjustment'], required: true }, fromWarehouse: String, toWarehouse: String, quantity: { type: Number, required: true }, unit: String, reference: String, notes: String, occurredAt: { type: Date, default: Date.now } }, { timestamps: true });
+stockMovementSchema.index({ organizationId: 1, movementNumber: 1 }, { unique: true });
+export const StockMovement = model('StockMovement', stockMovementSchema);
+
+const goodsReceiptSchema = new Schema({ ...tenantFields, receiptNumber: String, purchaseOrderId: { type: Schema.Types.ObjectId, ref: 'PurchaseOrder', required: true }, warehouse: { type: String, default: 'Main' }, items: [{ catalogItemId: { type: Schema.Types.ObjectId, ref: 'CatalogItem' }, quantity: Number, unit: String }], supplierReference: String, receivedAt: { type: Date, default: Date.now }, notes: String }, { timestamps: true });
+goodsReceiptSchema.index({ organizationId: 1, receiptNumber: 1 }, { unique: true });
+export const GoodsReceipt = model('GoodsReceipt', goodsReceiptSchema);
+
 const deliverySchema = new Schema({ ...tenantFields, deliveryNumber: String, projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true }, quoteId: { type: Schema.Types.ObjectId, ref: 'Quote' }, scheduledAt: Date, vehicle: String, driver: String, status: { type: String, enum: ['planned', 'packed', 'dispatched', 'delivered'], default: 'planned' }, notes: String }, { timestamps: true });
 deliverySchema.index({ organizationId: 1, deliveryNumber: 1 }, { unique: true });
 export const Delivery = model('Delivery', deliverySchema);
