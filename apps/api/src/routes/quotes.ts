@@ -55,7 +55,9 @@ quoteRouter.post('/', requirePermission('quotes.create'), async (request, respon
       const billableQuantity = quantityFor(product.unit, measurement);
       const basePaise = Math.round(billableQuantity * rateLine.sellingRatePaise);
       const wastePercent = rateLine.wastagePercent ?? card.defaultWastagePercent ?? 0;
-      const lineTotalPaise = basePaise + Math.round(basePaise * wastePercent / 100);
+      const attributes = measurement.attributes as unknown as { installationChargePaise?: number; transportChargePaise?: number; extraChargePaise?: number; configurationType?: string; openingDirection?: string; color?: string; profileSystem?: string; glassType?: string; profileBrandId?: string; glassBrandId?: string; hardwareBrandId?: string } | undefined;
+      const additionalChargesPaise = (attributes?.installationChargePaise ?? 0) + (attributes?.transportChargePaise ?? 0) + (attributes?.extraChargePaise ?? 0);
+      const lineTotalPaise = basePaise + Math.round(basePaise * wastePercent / 100) + additionalChargesPaise;
       return {
         localId: measurement._id.toString(), areaLocalId: measurement.areaLocalId, categoryKey: measurement.categoryKey,
         name: `${measurement.location} — ${measurement.itemType}`, quantity: measurement.quantity,
@@ -64,6 +66,7 @@ quoteRouter.post('/', requirePermission('quotes.create'), async (request, respon
           { key: 'heightMm', label: 'Height', value: measurement.heightMm, unit: 'mm' },
           { key: 'areaSqft', label: 'Area', value: measurement.areaSqft, unit: 'sqft' },
         ],
+        attributes: { ...attributes, wastePercent, additionalChargesPaise },
         selectedMaterials: [{ catalogItemId: product._id, nameSnapshot: product.name, codeSnapshot: product.code, quantity: Number(billableQuantity.toFixed(3)), unit: product.unit, unitRatePaise: rateLine.sellingRatePaise, totalPaise: lineTotalPaise }],
         lineTotalPaise,
       };

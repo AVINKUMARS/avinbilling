@@ -49,6 +49,8 @@ calculationRouter.post('/compare', async (request, response, next) => {
         const basePaise = Math.round(quantity * rateLine.sellingRatePaise);
         const wastagePercent = rateLine.wastagePercent ?? card.defaultWastagePercent ?? 0;
         const wastagePaise = Math.round(basePaise * wastagePercent / 100);
+        const attributes = measurement.attributes as unknown as { installationChargePaise?: number; transportChargePaise?: number; extraChargePaise?: number } | undefined;
+        const additionalChargesPaise = (attributes?.installationChargePaise ?? 0) + (attributes?.transportChargePaise ?? 0) + (attributes?.extraChargePaise ?? 0);
         return {
           measurementId: measurement._id,
           itemNumber: measurement.itemNumber,
@@ -62,7 +64,8 @@ calculationRouter.post('/compare', async (request, response, next) => {
           basePaise,
           wastagePercent,
           wastagePaise,
-          totalPaise: basePaise + wastagePaise,
+          additionalChargesPaise,
+          totalPaise: basePaise + wastagePaise + additionalChargesPaise,
         };
       });
       const subtotalPaise = lines.reduce((sum, line) => sum + line.totalPaise, 0);

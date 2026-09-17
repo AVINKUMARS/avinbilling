@@ -4,7 +4,7 @@ export type QuotePdfData = {
   _id?: string; quoteNumber: string; revision: number; status: string; validUntil: string;
   projectId?: { name: string; projectNumber: string; siteAddress?: string };
   clientId?: { name: string; phone: string; email?: string; billingAddress?: string; siteAddress?: string; gstin?: string };
-  items: Array<{ name: string; quantity: number; lineTotalPaise: number; measurements: Array<{ key: string; label: string; value: number; unit: string }>; selectedMaterials: Array<{ nameSnapshot: string; codeSnapshot: string; quantity: number; unit: string; unitRatePaise: number }> }>;
+  items: Array<{ name: string; quantity: number; lineTotalPaise: number; attributes?: { configurationType?: string; openingDirection?: string; color?: string; profileSystem?: string; glassType?: string; additionalChargesPaise?: number }; measurements: Array<{ key: string; label: string; value: number; unit: string }>; selectedMaterials: Array<{ nameSnapshot: string; codeSnapshot: string; quantity: number; unit: string; unitRatePaise: number }> }>;
   pricingSnapshot: { rateCardName: string; rateCardVersion: number; subtotalPaise: number; gstPercent: number; taxPaise: number; totalPaise: number };
   companySettings?: { companyProfile: { legalName: string; tradeName?: string; address?: string; city?: string; state?: string; postalCode?: string; phones: string[]; gstin?: string }; documents: { quotationTitle: string; deliveryTerms?: string; paymentTerms?: string; warrantyTerms?: string; footerText?: string; authorisedSignatory?: string } };
 };
