@@ -2658,6 +2658,12 @@ function OperationsPanel({
     Record<string, unknown[] | Record<string, number>>
   >({});
   const [error, setError] = useState("");
+  const [reportFrom, setReportFrom] = useState(
+    `${new Date().getFullYear()}-01-01`,
+  );
+  const [reportTo, setReportTo] = useState(
+    new Date().toISOString().slice(0, 10),
+  );
   const money = (paise: number) =>
     new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -2682,7 +2688,26 @@ function OperationsPanel({
       ["installations", "/operations/installations"],
       ["certificates", "/operations/completion-certificates"],
     ],
-    reports: [["overview", "/operations/reports/overview"]],
+    reports: [
+      [
+        "overview",
+        `/operations/reports/overview?from=${reportFrom}&to=${reportTo}`,
+      ],
+      [
+        "projects",
+        `/operations/reports/projects?from=${reportFrom}&to=${reportTo}`,
+      ],
+      ["gst", `/operations/reports/gst?from=${reportFrom}&to=${reportTo}`],
+      ["inventoryReport", "/operations/reports/inventory"],
+      [
+        "wastage",
+        `/operations/reports/wastage?from=${reportFrom}&to=${reportTo}`,
+      ],
+      [
+        "logisticsReport",
+        `/operations/reports/logistics?from=${reportFrom}&to=${reportTo}`,
+      ],
+    ],
     customize: [["definitions", "/operations/custom-definitions"]],
   };
   const loadOps = useCallback(async () => {
@@ -2701,7 +2726,7 @@ function OperationsPanel({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load module");
     }
-  }, [kind]);
+  }, [kind, reportFrom, reportTo]);
   useEffect(() => {
     void loadOps();
   }, [loadOps]);
@@ -2949,24 +2974,299 @@ function OperationsPanel({
   const canQuickAdd = kind === "customize";
   if (kind === "reports") {
     const report = data.overview as Record<string, number> | undefined;
+    const gst = data.gst as Record<string, number> | undefined;
+    const wastage = data.wastage as Record<string, number> | undefined;
+    const logistics = data.logisticsReport as
+      | Record<string, number>
+      | undefined;
+    const projectRows = list("projects");
+    const inventoryRows = list("inventoryReport");
+    const inventoryValue = inventoryRows.reduce(
+      (total, item) => total + Number(item.valuePaise ?? 0),
+      0,
+    );
+    function exportProjectCsv() {
+      const headings = [
+        "Project number",
+        "Project",
+        "Status",
+        "Revenue",
+        "Purchase cost",
+        "Gross profit",
+        "Margin %",
+        "Collected",
+        "Outstanding",
+      ];
+      const rows = projectRows.map((project) => [
+        project.projectNumber,
+        project.name,
+        project.status,
+        Number(project.revenuePaise ?? 0) / 100,
+        Number(project.purchasePaise ?? 0) / 100,
+        Number(project.grossProfitPaise ?? 0) / 100,
+        project.grossMarginPercent,
+        Number(project.collectedPaise ?? 0) / 100,
+        Number(project.outstandingPaise ?? 0) / 100,
+      ]);
+      const csv = [headings, ...rows]
+        .map((row) =>
+          row
+            .map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`)
+            .join(","),
+        )
+        .join("\n");
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(
+        new Blob([csv], { type: "text/csv;charset=utf-8" }),
+      );
+      link.download = `project-profitability-${reportFrom}-${reportTo}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
     return (
-      <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[
-          ["Total quotations", report?.quotes ?? 0],
-          ["Approved orders", report?.approved ?? 0],
-          ["Approved revenue", money(report?.approvedRevenuePaise ?? 0)],
-          ["Payments collected", money(report?.paymentsPaise ?? 0)],
-          ["Purchase value", money(report?.purchasesPaise ?? 0)],
-          ["Low-stock items", report?.lowStock ?? 0],
-        ].map(([label, value]) => (
-          <article
-            key={String(label)}
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"
-          >
-            <div className="text-sm font-bold text-slate-500">{label}</div>
-            <div className="mt-3 text-3xl font-black text-ink">{value}</div>
+      <div className="mt-7 space-y-6">
+        <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-card lg:flex-row lg:items-end lg:justify-between print:hidden">
+          <div>
+            <h2 className="text-lg font-black text-ink">Reporting period</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              All sales, cost, GST and performance totals use this date range.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-xs font-bold text-slate-500">
+              From
+              <input
+                type="date"
+                value={reportFrom}
+                max={reportTo}
+                onChange={(event) => setReportFrom(event.target.value)}
+                className="mt-1 block rounded-xl border border-slate-200 px-3 py-2 text-sm text-ink"
+              />
+            </label>
+            <label className="text-xs font-bold text-slate-500">
+              To
+              <input
+                type="date"
+                value={reportTo}
+                min={reportFrom}
+                onChange={(event) => setReportTo(event.target.value)}
+                className="mt-1 block rounded-xl border border-slate-200 px-3 py-2 text-sm text-ink"
+              />
+            </label>
+            <button
+              onClick={exportProjectCsv}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-ink"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+            >
+              Print / Save PDF
+            </button>
+          </div>
+        </section>
+
+        {error && (
+          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {error}
+          </div>
+        )}
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Total quotations", report?.quotes ?? 0],
+            ["Approved orders", report?.approved ?? 0],
+            ["Conversion", `${report?.conversionPercent ?? 0}%`],
+            ["Approved revenue", money(report?.approvedRevenuePaise ?? 0)],
+            ["Payments collected", money(report?.paymentsPaise ?? 0)],
+            ["Outstanding", money(report?.outstandingPaise ?? 0)],
+            ["Purchase value", money(report?.purchasesPaise ?? 0)],
+            ["Low-stock items", report?.lowStock ?? 0],
+          ].map(([label, value]) => (
+            <article
+              key={String(label)}
+              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"
+            >
+              <div className="text-sm font-bold text-slate-500">{label}</div>
+              <div className="mt-3 text-2xl font-black text-ink">{value}</div>
+            </article>
+          ))}
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-black text-ink">
+                Project profitability
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Revenue, material purchases, collections and gross margin by
+                project.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="text-xs uppercase text-slate-400">
+                <tr>
+                  <th className="py-3">Project</th>
+                  <th>Revenue</th>
+                  <th>Purchase cost</th>
+                  <th>Gross profit</th>
+                  <th>Margin</th>
+                  <th>Collected</th>
+                  <th>Outstanding</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {projectRows.map((project) => (
+                  <tr key={String(project.projectId)}>
+                    <td className="py-3">
+                      <b className="text-ink">{String(project.name)}</b>
+                      <span className="block text-xs text-slate-500">
+                        {String(project.projectNumber)} · {String(project.status)}
+                      </span>
+                    </td>
+                    <td>{money(Number(project.revenuePaise ?? 0))}</td>
+                    <td>{money(Number(project.purchasePaise ?? 0))}</td>
+                    <td className="font-bold text-ink">
+                      {money(Number(project.grossProfitPaise ?? 0))}
+                    </td>
+                    <td>{String(project.grossMarginPercent ?? 0)}%</td>
+                    <td>{money(Number(project.collectedPaise ?? 0))}</td>
+                    <td>{money(Number(project.outstandingPaise ?? 0))}</td>
+                  </tr>
+                ))}
+                {!projectRows.length && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                      No approved project activity in this period.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-3">
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+            <h2 className="text-lg font-black text-ink">GST summary</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              {[
+                ["Invoices", gst?.invoiceCount ?? 0],
+                ["Taxable value", money(gst?.taxablePaise ?? 0)],
+                ["CGST", money(gst?.cgstPaise ?? 0)],
+                ["SGST", money(gst?.sgstPaise ?? 0)],
+                ["IGST", money(gst?.igstPaise ?? 0)],
+                ["Invoice total", money(gst?.grandTotalPaise ?? 0)],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="flex justify-between gap-4">
+                  <dt className="text-slate-500">{label}</dt>
+                  <dd className="font-bold text-ink">{value}</dd>
+                </div>
+              ))}
+            </dl>
           </article>
-        ))}
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+            <h2 className="text-lg font-black text-ink">Production usage</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              {[
+                ["BOMs generated", wastage?.bomCount ?? 0],
+                ["Profile bars", wastage?.profileBars ?? 0],
+                ["Required profile", `${((wastage?.requiredProfileMm ?? 0) / 1000).toFixed(1)} m`],
+                ["Estimated offcut", `${((wastage?.estimatedOffcutMm ?? 0) / 1000).toFixed(1)} m`],
+                ["Average configured waste", `${wastage?.averageWastePercent ?? 0}%`],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="flex justify-between gap-4">
+                  <dt className="text-slate-500">{label}</dt>
+                  <dd className="font-bold text-ink">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+            <h2 className="text-lg font-black text-ink">Delivery & installation</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              {[
+                ["Deliveries", logistics?.deliveries ?? 0],
+                ["Delivered", logistics?.delivered ?? 0],
+                ["On-time deliveries", logistics?.onTimeDeliveries ?? 0],
+                ["Installations", logistics?.installations ?? 0],
+                ["Completed", logistics?.completedInstallations ?? 0],
+                ["Open snags", logistics?.openSnags ?? 0],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="flex justify-between gap-4">
+                  <dt className="text-slate-500">{label}</dt>
+                  <dd className="font-bold text-ink">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </article>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-ink">
+                Inventory valuation
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Valued with purchase rates from the current active rate card.
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="block text-xs font-bold uppercase text-slate-400">
+                Total stock value
+              </span>
+              <b className="text-xl text-ink">{money(inventoryValue)}</b>
+            </div>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="text-xs uppercase text-slate-400">
+                <tr>
+                  <th className="py-3">Item</th>
+                  <th>Warehouse</th>
+                  <th>On hand</th>
+                  <th>Allocated</th>
+                  <th>Available</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {inventoryRows.map((item) => (
+                  <tr key={String(item.stockItemId)}>
+                    <td className="py-3">
+                      <b className="text-ink">{String(item.name)}</b>
+                      <span className="block text-xs text-slate-500">
+                        {String(item.code)}
+                      </span>
+                    </td>
+                    <td>{String(item.warehouse)}</td>
+                    <td>{String(item.onHand)} {String(item.unit ?? "")}</td>
+                    <td>{String(item.allocated)}</td>
+                    <td>
+                      <span className={item.lowStock ? "font-bold text-red-600" : "font-bold text-emerald-700"}>
+                        {String(item.available)}
+                      </span>
+                    </td>
+                    <td>{money(Number(item.valuePaise ?? 0))}</td>
+                  </tr>
+                ))}
+                {!inventoryRows.length && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-500">
+                      No stock items available yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     );
   }

@@ -5,7 +5,7 @@ import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { Quote } from "../models/quote.js";
 import { Client } from "../models/client.js";
 import { Project } from "../models/project.js";
-import { CatalogItem } from "../models/catalog.js";
+import { CatalogItem, RateCard } from "../models/catalog.js";
 import {
   Bom,
   CompletionCertificate,
@@ -1171,15 +1171,29 @@ operationsRouter.post("/installations/:id/snags", requirePermission("installatio
 operationsRouter.post("/installations/:id/sign-off", requirePermission("installation.create"), async (request, response, next) => { try { const input = z.object({ customerSignatory: z.string().trim().min(2), signature: z.string().min(2).max(20_000) }).parse(request.body); const organizationId = request.auth!.organizationId; const installation = await Installation.findOne({ _id: request.params.id, organizationId }); if (!installation) { response.status(404).json({ error: { message: "Installation not found" } }); return; } installation.customerSignatory = input.customerSignatory; installation.customerSignature = input.signature; installation.signedAt = new Date(); const signoff = installation.checklist.find((entry) => entry.label === "Customer sign-off"); if (signoff) signoff.completed = true; await installation.save(); const count = await CompletionCertificate.countDocuments({ organizationId }); const certificate = await CompletionCertificate.create({ organizationId, certificateNumber: `CC-${String(count + 1).padStart(5, "0")}`, installationId: installation._id, projectId: installation.projectId, customerSignatory: input.customerSignatory, completedAt: new Date(), statement: "Installation work inspected and accepted by the customer.", createdBy: request.auth!.userId, updatedBy: request.auth!.userId }); response.status(201).json({ data: { installation, certificate } }); } catch (e) { next(e); } });
 operationsRouter.get("/completion-certificates", async (request, response, next) => { try { response.json({ data: await CompletionCertificate.find({ organizationId: request.auth!.organizationId }).populate("projectId", "name projectNumber").sort({ createdAt: -1 }).lean() }); } catch (e) { next(e); } });
 
+function reportDateRange(fromValue: unknown, toValue: unknown) {
+  const from =
+    typeof fromValue === "string" && !Number.isNaN(Date.parse(fromValue))
+      ? new Date(`${fromValue}T00:00:00.000Z`)
+      : new Date(new Date().getUTCFullYear(), 0, 1);
+  const to =
+    typeof toValue === "string" && !Number.isNaN(Date.parse(toValue))
+      ? new Date(`${toValue}T23:59:59.999Z`)
+      : new Date();
+  return { from, to };
+}
+
 operationsRouter.get("/reports/overview", async (request, response, next) => {
   try {
     const organizationId = request.auth!.organizationId;
-    const [quotes, approved, revenue, paid, purchase, lowStock] =
+    const { from, to } = reportDateRange(request.query.from, request.query.to);
+    const createdAt = { $gte: from, $lte: to };
+    const [quotes, approved, revenue, paid, purchase, lowStock, invoices] =
       await Promise.all([
-        Quote.countDocuments({ organizationId }),
-        Quote.countDocuments({ organizationId, status: "approved" }),
+        Quote.countDocuments({ organizationId, createdAt }),
+        Quote.countDocuments({ organizationId, status: "approved", createdAt }),
         Quote.aggregate([
-          { $match: { organizationId, status: "approved" } },
+          { $match: { organizationId, status: "approved", createdAt } },
           {
             $group: {
               _id: null,
@@ -1188,17 +1202,40 @@ operationsRouter.get("/reports/overview", async (request, response, next) => {
           },
         ]),
         Payment.aggregate([
-          { $match: { organizationId, status: "recorded" } },
-          { $group: { _id: null, total: { $sum: "$amountPaise" } } },
+          { $match: { organizationId, status: "recorded", receivedAt: createdAt } },
+          {
+            $group: {
+              _id: null,
+              total: {
+                $sum: {
+                  $cond: [
+                    { $eq: ["$paymentType", "refund"] },
+                    { $multiply: ["$amountPaise", -1] },
+                    "$amountPaise",
+                  ],
+                },
+              },
+            },
+          },
         ]),
         PurchaseOrder.aggregate([
-          { $match: { organizationId } },
+          { $match: { organizationId, createdAt, status: { $ne: "cancelled" } } },
           { $group: { _id: null, total: { $sum: "$totalPaise" } } },
         ]),
         StockItem.countDocuments({
           organizationId,
           $expr: { $lte: ["$onHand", "$reorderLevel"] },
         }),
+        Invoice.aggregate([
+          { $match: { organizationId, createdAt, status: { $ne: "cancelled" } } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: "$grandTotalPaise" },
+              outstanding: { $sum: "$balancePaise" },
+            },
+          },
+        ]),
       ]);
     response.json({
       data: {
@@ -1208,6 +1245,273 @@ operationsRouter.get("/reports/overview", async (request, response, next) => {
         paymentsPaise: paid[0]?.total ?? 0,
         purchasesPaise: purchase[0]?.total ?? 0,
         lowStock,
+        invoiceValuePaise: invoices[0]?.total ?? 0,
+        outstandingPaise: invoices[0]?.outstanding ?? 0,
+        conversionPercent: quotes ? Math.round((approved / quotes) * 1000) / 10 : 0,
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+operationsRouter.get("/reports/projects", async (request, response, next) => {
+  try {
+    const organizationId = request.auth!.organizationId;
+    const { from, to } = reportDateRange(request.query.from, request.query.to);
+    const createdAt = { $gte: from, $lte: to };
+    const [projects, quotes, purchases, payments] = await Promise.all([
+      Project.find({ organizationId })
+        .select("name projectNumber status")
+        .sort({ createdAt: -1 })
+        .lean(),
+      Quote.find({ organizationId, status: "approved", createdAt })
+        .select("projectId pricingSnapshot")
+        .lean(),
+      PurchaseOrder.find({
+        organizationId,
+        createdAt,
+        status: { $ne: "cancelled" },
+      })
+        .select("projectId totalPaise")
+        .lean(),
+      Payment.find({ organizationId, status: "recorded", receivedAt: createdAt })
+        .select("quoteId amountPaise paymentType")
+        .lean(),
+    ]);
+    const paymentQuotes = await Quote.find({
+      organizationId,
+      _id: { $in: payments.map((payment) => payment.quoteId) },
+    })
+      .select("projectId")
+      .lean();
+    const quoteProject = new Map<string, string>();
+    for (const quote of paymentQuotes) {
+      quoteProject.set(String(quote._id), String(quote.projectId));
+    }
+    const revenue = new Map<string, number>();
+    for (const quote of quotes) {
+      const projectId = String(quote.projectId);
+      quoteProject.set(String(quote._id), projectId);
+      const total = Number(
+        (quote.pricingSnapshot as { totalPaise?: number } | undefined)?.totalPaise ?? 0,
+      );
+      revenue.set(projectId, (revenue.get(projectId) ?? 0) + total);
+    }
+    const purchaseValue = new Map<string, number>();
+    for (const purchase of purchases) {
+      if (!purchase.projectId) continue;
+      const projectId = String(purchase.projectId);
+      purchaseValue.set(
+        projectId,
+        (purchaseValue.get(projectId) ?? 0) + Number(purchase.totalPaise ?? 0),
+      );
+    }
+    const collected = new Map<string, number>();
+    for (const payment of payments) {
+      const projectId = quoteProject.get(String(payment.quoteId));
+      if (!projectId) continue;
+      const signedAmount =
+        payment.paymentType === "refund"
+          ? -Number(payment.amountPaise)
+          : Number(payment.amountPaise);
+      collected.set(projectId, (collected.get(projectId) ?? 0) + signedAmount);
+    }
+    const data = projects
+      .map((project) => {
+        const projectId = String(project._id);
+        const revenuePaise = revenue.get(projectId) ?? 0;
+        const purchasePaise = purchaseValue.get(projectId) ?? 0;
+        const collectedPaise = collected.get(projectId) ?? 0;
+        return {
+          projectId,
+          projectNumber: project.projectNumber,
+          name: project.name,
+          status: project.status,
+          revenuePaise,
+          purchasePaise,
+          collectedPaise,
+          outstandingPaise: Math.max(revenuePaise - collectedPaise, 0),
+          grossProfitPaise: revenuePaise - purchasePaise,
+          grossMarginPercent: revenuePaise
+            ? Math.round(((revenuePaise - purchasePaise) / revenuePaise) * 1000) / 10
+            : 0,
+        };
+      })
+      .filter(
+        (project) =>
+          project.revenuePaise ||
+          project.purchasePaise ||
+          project.collectedPaise,
+      );
+    response.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+operationsRouter.get("/reports/gst", async (request, response, next) => {
+  try {
+    const organizationId = request.auth!.organizationId;
+    const { from, to } = reportDateRange(request.query.from, request.query.to);
+    const result = await Invoice.aggregate([
+      {
+        $match: {
+          organizationId,
+          status: { $ne: "cancelled" },
+          createdAt: { $gte: from, $lte: to },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          invoiceCount: { $sum: 1 },
+          taxablePaise: { $sum: "$taxablePaise" },
+          cgstPaise: { $sum: "$cgstPaise" },
+          sgstPaise: { $sum: "$sgstPaise" },
+          igstPaise: { $sum: "$igstPaise" },
+          grandTotalPaise: { $sum: "$grandTotalPaise" },
+        },
+      },
+    ]);
+    response.json({
+      data: result[0] ?? {
+        invoiceCount: 0,
+        taxablePaise: 0,
+        cgstPaise: 0,
+        sgstPaise: 0,
+        igstPaise: 0,
+        grandTotalPaise: 0,
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+operationsRouter.get("/reports/inventory", async (request, response, next) => {
+  try {
+    const organizationId = request.auth!.organizationId;
+    const [stock, rateCard] = await Promise.all([
+      StockItem.find({ organizationId })
+        .populate("catalogItemId", "name code")
+        .sort({ warehouse: 1 })
+        .lean(),
+      RateCard.findOne({ organizationId, status: "active" })
+        .sort({ effectiveFrom: -1 })
+        .lean(),
+    ]);
+    const rates = new Map(
+      (rateCard?.lines ?? []).map((line) => [
+        String(line.catalogItemId),
+        Number(line.purchaseRatePaise ?? 0),
+      ]),
+    );
+    response.json({
+      data: stock.map((item) => {
+        const product = item.catalogItemId as unknown as {
+          _id: mongoose.Types.ObjectId;
+          name?: string;
+          code?: string;
+        };
+        const ratePaise = rates.get(String(product?._id)) ?? 0;
+        const available = Number(item.onHand) - Number(item.allocated);
+        return {
+          stockItemId: String(item._id),
+          name: product?.name ?? "Catalog item",
+          code: product?.code ?? "",
+          warehouse: item.warehouse,
+          unit: item.unit,
+          onHand: item.onHand,
+          allocated: item.allocated,
+          available,
+          reorderLevel: item.reorderLevel,
+          lowStock: available <= Number(item.reorderLevel),
+          ratePaise,
+          valuePaise: Math.round(Number(item.onHand) * ratePaise),
+        };
+      }),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+operationsRouter.get("/reports/wastage", async (request, response, next) => {
+  try {
+    const organizationId = request.auth!.organizationId;
+    const { from, to } = reportDateRange(request.query.from, request.query.to);
+    const boms = await Bom.find({
+      organizationId,
+      createdAt: { $gte: from, $lte: to },
+    })
+      .select("items")
+      .lean();
+    let requiredProfileMm = 0;
+    let purchasedProfileMm = 0;
+    let profileBars = 0;
+    let wastePercentTotal = 0;
+    let wasteLines = 0;
+    for (const bom of boms) {
+      for (const item of bom.items) {
+        const bars = Number(item.barCount ?? 0);
+        if (!bars) continue;
+        profileBars += bars;
+        requiredProfileMm += Number(item.requiredQuantity ?? 0);
+        purchasedProfileMm += bars * 5800;
+        wastePercentTotal += Number(item.wastagePercent ?? 0);
+        wasteLines += 1;
+      }
+    }
+    response.json({
+      data: {
+        bomCount: boms.length,
+        profileBars,
+        requiredProfileMm,
+        purchasedProfileMm,
+        estimatedOffcutMm: Math.max(purchasedProfileMm - requiredProfileMm, 0),
+        averageWastePercent: wasteLines
+          ? Math.round((wastePercentTotal / wasteLines) * 10) / 10
+          : 0,
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+operationsRouter.get("/reports/logistics", async (request, response, next) => {
+  try {
+    const organizationId = request.auth!.organizationId;
+    const { from, to } = reportDateRange(request.query.from, request.query.to);
+    const createdAt = { $gte: from, $lte: to };
+    const [deliveries, installations] = await Promise.all([
+      Delivery.find({ organizationId, createdAt })
+        .select("status scheduledAt deliveredAt")
+        .lean(),
+      Installation.find({ organizationId, createdAt })
+        .select("status scheduledAt completedAt snagItems")
+        .lean(),
+    ]);
+    const delivered = deliveries.filter((item) => item.status === "delivered");
+    const completed = installations.filter((item) => item.status === "completed");
+    response.json({
+      data: {
+        deliveries: deliveries.length,
+        delivered: delivered.length,
+        onTimeDeliveries: delivered.filter(
+          (item) =>
+            item.deliveredAt &&
+            item.scheduledAt &&
+            item.deliveredAt.getTime() <= item.scheduledAt.getTime(),
+        ).length,
+        installations: installations.length,
+        completedInstallations: completed.length,
+        openSnags: installations.reduce(
+          (total, item) =>
+            total + item.snagItems.filter((snag) => !snag.resolved).length,
+          0,
+        ),
       },
     });
   } catch (e) {
