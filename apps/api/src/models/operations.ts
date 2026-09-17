@@ -12,7 +12,12 @@ export const Payment = model('Payment', paymentSchema);
 const bomSchema = new Schema({
   ...tenantFields, bomNumber: { type: String, required: true }, quoteId: { type: Schema.Types.ObjectId, ref: 'Quote', required: true, index: true }, quoteRevision: Number,
   status: { type: String, enum: ['preliminary', 'released', 'in_production', 'quality_check', 'ready', 'completed'], default: 'preliminary' },
-  calculationVersion: { type: Number, default: 1 }, items: [{ quoteItemLocalId: String, location: String, componentName: String, componentCode: String, quantity: Number, unit: String, requiredQuantity: Number, notes: String }], generatedAt: { type: Date, default: Date.now },
+  workOrderNumber: String,
+  calculationVersion: { type: Number, default: 2 },
+  items: [{ quoteItemLocalId: String, location: String, componentName: String, componentCode: String, quantity: Number, unit: String, requiredQuantity: Number, cutLengthMm: Number, cutWidthMm: Number, cutHeightMm: Number, barCount: Number, wastagePercent: Number, notes: String }],
+  workflow: [{ stage: String, completed: { type: Boolean, default: false }, completedAt: Date }],
+  qualityChecklist: [{ label: String, completed: { type: Boolean, default: false }, notes: String }],
+  generatedAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 bomSchema.index({ organizationId: 1, bomNumber: 1 }, { unique: true });
 export const Bom = model('Bom', bomSchema);
