@@ -43,6 +43,31 @@ catalogRouter.post('/items', requirePermission('catalog.create'), async (request
   } catch (error) { next(error); }
 });
 
+catalogRouter.patch('/items/:id', requirePermission('catalog.create'), async (request, response, next) => {
+  try {
+    const input = itemInput.partial().parse(request.body);
+    const data = await CatalogItem.findOneAndUpdate(
+      { _id: request.params.id, organizationId: request.auth!.organizationId },
+      { $set: { ...input, brandId: input.brandId || undefined, updatedBy: request.auth!.userId } },
+      { new: true },
+    );
+    if (!data) { response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Catalog item not found' } }); return; }
+    response.json({ data });
+  } catch (error) { next(error); }
+});
+
+catalogRouter.delete('/items/:id', requirePermission('catalog.create'), async (request, response, next) => {
+  try {
+    const data = await CatalogItem.findOneAndUpdate(
+      { _id: request.params.id, organizationId: request.auth!.organizationId },
+      { $set: { isActive: false, updatedBy: request.auth!.userId } },
+      { new: true },
+    );
+    if (!data) { response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Catalog item not found' } }); return; }
+    response.json({ data });
+  } catch (error) { next(error); }
+});
+
 catalogRouter.get('/rate-cards', async (request, response, next) => {
   try {
     const data = await RateCard.find({ organizationId: request.auth!.organizationId }).populate('lines.catalogItemId', 'name code unit').sort({ createdAt: -1 }).lean();
@@ -56,6 +81,25 @@ catalogRouter.post('/rate-cards', requirePermission('rates.create'), async (requ
     const latest = await RateCard.findOne({ organizationId: request.auth!.organizationId, name: input.name }).sort({ version: -1 }).lean();
     const data = await RateCard.create({ ...input, version: (latest?.version ?? 0) + 1, organizationId: request.auth!.organizationId, createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
     response.status(201).json({ data });
+  } catch (error) { next(error); }
+});
+
+catalogRouter.patch('/rate-cards/:id', requirePermission('rates.create'), async (request, response, next) => {
+  try {
+    const input = rateCardInput.partial().parse(request.body);
+    const card = await RateCard.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId });
+    if (!card) { response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Rate card not found' } }); return; }
+    if (card.status !== 'draft') { response.status(409).json({ error: { code: 'LOCKED', message: 'Only draft rate cards can be edited' } }); return; }
+    Object.assign(card, input, { updatedBy: request.auth!.userId }); await card.save();
+    response.json({ data: card });
+  } catch (error) { next(error); }
+});
+
+catalogRouter.delete('/rate-cards/:id', requirePermission('rates.create'), async (request, response, next) => {
+  try {
+    const data = await RateCard.findOneAndDelete({ _id: request.params.id, organizationId: request.auth!.organizationId, status: 'draft' });
+    if (!data) { response.status(409).json({ error: { code: 'LOCKED', message: 'Only draft rate cards can be deleted' } }); return; }
+    response.json({ data });
   } catch (error) { next(error); }
 });
 
