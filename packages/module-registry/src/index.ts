@@ -1,4 +1,4 @@
-import type { ModuleKey } from '@meera/shared';
+import type { ModuleKey } from '@avin/shared';
 
 export type BusinessModule = {
   key: ModuleKey;

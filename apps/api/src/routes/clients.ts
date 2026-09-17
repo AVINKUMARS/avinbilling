@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { clientSchema } from '@meera/shared';
+import { clientSchema } from '@avin/shared';
 import { Client } from '../models/client.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 

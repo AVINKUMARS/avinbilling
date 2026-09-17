@@ -1,5 +1,5 @@
 {
-  "name": "@meera/api",
+  "name": "@avin/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,9 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@meera/industry-upvc": "*",
-    "@meera/module-registry": "*",
-    "@meera/shared": "*",
+    "@avin/industry-upvc": "*",
+    "@avin/module-registry": "*",
+    "@avin/shared": "*",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

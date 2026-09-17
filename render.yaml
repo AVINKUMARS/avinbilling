@@ -3,8 +3,8 @@ services:
     name: avin-business-suite-api
     runtime: node
     rootDir: .
-    buildCommand: npm ci && npm run build -w @meera/api
-    startCommand: npm run start -w @meera/api
+    buildCommand: npm ci && npm run build -w @avin/api
+    startCommand: npm run start -w @avin/api
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
@@ -19,7 +19,7 @@ services:
     name: avin-business-suite-web
     runtime: static
     rootDir: .
-    buildCommand: npm ci && npm run build -w @meera/web
+    buildCommand: npm ci && npm run build -w @avin/web
     staticPublishPath: apps/web/dist
     envVars:
       - key: VITE_API_URL

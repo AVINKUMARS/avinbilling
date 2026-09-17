@@ -1,5 +1,5 @@
 {
-  "name": "@meera/module-registry",
+  "name": "@avin/module-registry",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@meera/shared": "*"
+    "@avin/shared": "*"
   },
   "devDependencies": {
     "vitest": "^3.0.8"

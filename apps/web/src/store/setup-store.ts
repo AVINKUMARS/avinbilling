@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { ModuleKey } from '@meera/shared';
-import { resolveModules } from '@meera/module-registry';
+import type { ModuleKey } from '@avin/shared';
+import { resolveModules } from '@avin/module-registry';
 
 type SetupState = {
   enabledModules: ModuleKey[];

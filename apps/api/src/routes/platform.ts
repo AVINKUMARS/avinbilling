@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { moduleCatalog } from '@meera/module-registry';
-import { upvcPack } from '@meera/industry-upvc';
+import { moduleCatalog } from '@avin/module-registry';
+import { upvcPack } from '@avin/industry-upvc';
 
 export const platformRouter = Router();
 

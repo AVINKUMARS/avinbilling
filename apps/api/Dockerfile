@@ -7,11 +7,11 @@ COPY packages/module-registry/package.json packages/module-registry/package.json
 COPY packages/industry-packs/upvc/package.json packages/industry-packs/upvc/package.json
 RUN npm ci
 COPY . .
-RUN npm run build -w @meera/api
+RUN npm run build -w @avin/api
 
 FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app /app
 EXPOSE 4000
-CMD ["npm", "run", "start", "-w", "@meera/api"]
+CMD ["npm", "run", "start", "-w", "@avin/api"]

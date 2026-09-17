@@ -54,13 +54,17 @@ const goodsReceiptSchema = new Schema({ ...tenantFields, receiptNumber: String, 
 goodsReceiptSchema.index({ organizationId: 1, receiptNumber: 1 }, { unique: true });
 export const GoodsReceipt = model('GoodsReceipt', goodsReceiptSchema);
 
-const deliverySchema = new Schema({ ...tenantFields, deliveryNumber: String, projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true }, quoteId: { type: Schema.Types.ObjectId, ref: 'Quote' }, scheduledAt: Date, vehicle: String, driver: String, status: { type: String, enum: ['planned', 'packed', 'dispatched', 'delivered'], default: 'planned' }, notes: String }, { timestamps: true });
+const deliverySchema = new Schema({ ...tenantFields, deliveryNumber: String, projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true }, quoteId: { type: Schema.Types.ObjectId, ref: 'Quote' }, scheduledAt: Date, vehicle: String, driver: String, status: { type: String, enum: ['planned', 'packed', 'dispatched', 'delivered'], default: 'planned' }, packingChecklist: [{ label: String, completed: Boolean }], dispatchedAt: Date, deliveredAt: Date, proofFiles: [{ name: String, url: String, type: String }], notes: String }, { timestamps: true });
 deliverySchema.index({ organizationId: 1, deliveryNumber: 1 }, { unique: true });
 export const Delivery = model('Delivery', deliverySchema);
 
-const installationSchema = new Schema({ ...tenantFields, installationNumber: String, projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true }, scheduledAt: Date, assignedTeam: String, status: { type: String, enum: ['planned', 'in_progress', 'snag', 'completed'], default: 'planned' }, checklist: [{ label: String, completed: Boolean }], notes: String, completedAt: Date }, { timestamps: true });
+const installationSchema = new Schema({ ...tenantFields, installationNumber: String, projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true }, scheduledAt: Date, assignedTeam: String, status: { type: String, enum: ['planned', 'in_progress', 'snag', 'completed'], default: 'planned' }, checklist: [{ label: String, completed: Boolean, notes: String }], snagItems: [{ description: String, resolved: Boolean, resolvedAt: Date }], siteFiles: [{ name: String, url: String, type: String }], customerSignatory: String, customerSignature: String, signedAt: Date, notes: String, completedAt: Date }, { timestamps: true });
 installationSchema.index({ organizationId: 1, installationNumber: 1 }, { unique: true });
 export const Installation = model('Installation', installationSchema);
+
+const completionCertificateSchema = new Schema({ ...tenantFields, certificateNumber: String, installationId: { type: Schema.Types.ObjectId, ref: 'Installation', required: true }, projectId: { type: Schema.Types.ObjectId, ref: 'Project', required: true }, customerSignatory: String, completedAt: Date, statement: String }, { timestamps: true });
+completionCertificateSchema.index({ organizationId: 1, certificateNumber: 1 }, { unique: true });
+export const CompletionCertificate = model('CompletionCertificate', completionCertificateSchema);
 
 const customDefinitionSchema = new Schema({ ...tenantFields, definitionType: { type: String, enum: ['field', 'form', 'workflow', 'formula', 'document'], required: true }, key: { type: String, required: true }, name: { type: String, required: true }, version: { type: Number, default: 1 }, status: { type: String, enum: ['draft', 'active', 'archived'], default: 'draft' }, configuration: Schema.Types.Mixed }, { timestamps: true });
 customDefinitionSchema.index({ organizationId: 1, definitionType: 1, key: 1, version: 1 }, { unique: true });

@@ -1,6 +1,6 @@
 import { ArrowRight, Boxes, Building2, CheckCircle2, FileText, Layers3, LoaderCircle, LogOut, Menu, PackageCheck, Sparkles, Users, WalletCards } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
-import { moduleCatalog } from '@meera/module-registry';
+import { moduleCatalog } from '@avin/module-registry';
 import { ModuleCard } from './components/ModuleCard';
 import { Workspace } from './components/Workspace';
 import { useSetupStore } from './store/setup-store';
@@ -171,7 +171,7 @@ function SetupWizard({ onCreated }: { onCreated: () => void }) {
                     onChange={(event) => setOrganizationName(event.target.value)}
                     required
                     minLength={2}
-                    placeholder="Example: Meera UPVC"
+                    placeholder="Example: Avin UPVC"
                     className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
                   />
                 </label>

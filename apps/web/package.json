@@ -1,5 +1,5 @@
 {
-  "name": "@meera/web",
+  "name": "@avin/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@meera/module-registry": "*",
-    "@meera/shared": "*",
+    "@avin/module-registry": "*",
+    "@avin/shared": "*",
     "@react-pdf/renderer": "^4.9.0",
     "dexie": "^4.4.6",
     "lucide-react": "^0.468.0",

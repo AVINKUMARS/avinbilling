@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { areaSquareFeet } from '@meera/shared';
+import { areaSquareFeet } from '@avin/shared';
 import { MeasurementItem } from '../models/measurement.js';
 import { Project } from '../models/project.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';

@@ -1,5 +1,5 @@
 import { Check, LockKeyhole } from 'lucide-react';
-import type { BusinessModule } from '@meera/module-registry';
+import type { BusinessModule } from '@avin/module-registry';
 
 type Props = {
   module: BusinessModule;

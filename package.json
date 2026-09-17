@@ -9,7 +9,7 @@
     "packages/industry-packs/*"
   ],
   "scripts": {
-    "dev": "concurrently -n web,api -c cyan,green \"npm run dev -w @meera/web\" \"npm run dev -w @meera/api\"",
+    "dev": "concurrently -n web,api -c cyan,green \"npm run dev -w @avin/web\" \"npm run dev -w @avin/api\"",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",

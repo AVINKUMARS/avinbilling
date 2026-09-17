@@ -8,6 +8,7 @@ import { Project } from "../models/project.js";
 import { CatalogItem } from "../models/catalog.js";
 import {
   Bom,
+  CompletionCertificate,
   CreditNote,
   CustomDefinition,
   Delivery,
@@ -1100,6 +1101,7 @@ operationsRouter.post(
       const data = await Delivery.create({
         ...input,
         deliveryNumber: `DEL-${String(count + 1).padStart(5, "0")}`,
+        packingChecklist: ["Frames labelled", "Glass protected", "Hardware packed", "Documents included"].map((label) => ({ label, completed: false })),
         organizationId: request.auth!.organizationId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
@@ -1110,6 +1112,8 @@ operationsRouter.post(
     }
   },
 );
+operationsRouter.patch("/deliveries/:id/status", requirePermission("delivery.create"), async (request, response, next) => { try { const status = z.enum(["planned", "packed", "dispatched", "delivered"]).parse(request.body.status); const order = ["planned", "packed", "dispatched", "delivered"]; const delivery = await Delivery.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); if (!delivery) { response.status(404).json({ error: { message: "Delivery not found" } }); return; } if (order.indexOf(status) > order.indexOf(delivery.status) + 1) { response.status(409).json({ error: { message: "Complete delivery stages in order" } }); return; } if (status === "packed" && delivery.packingChecklist.some((entry) => !entry.completed)) { response.status(409).json({ error: { message: "Complete the packing checklist first" } }); return; } delivery.status = status; if (status === "dispatched") delivery.dispatchedAt = new Date(); if (status === "delivered") delivery.deliveredAt = new Date(); await delivery.save(); response.json({ data: delivery }); } catch (e) { next(e); } });
+operationsRouter.patch("/deliveries/:id/checklist/:index", requirePermission("delivery.create"), async (request, response, next) => { try { const delivery = await Delivery.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); const index = Number(request.params.index); if (!delivery || !delivery.packingChecklist[index]) { response.status(404).json({ error: { message: "Checklist item not found" } }); return; } delivery.packingChecklist[index]!.completed = z.boolean().parse(request.body.completed); await delivery.save(); response.json({ data: delivery }); } catch (e) { next(e); } });
 operationsRouter.get("/installations", async (request, response, next) => {
   try {
     response.json({
@@ -1146,6 +1150,9 @@ operationsRouter.post(
         checklist: [
           { label: "Site ready", completed: false },
           { label: "Items verified", completed: false },
+          { label: "Frames fixed and aligned", completed: false },
+          { label: "Glass and hardware tested", completed: false },
+          { label: "Sealant and cleaning completed", completed: false },
           { label: "Customer sign-off", completed: false },
         ],
         organizationId: request.auth!.organizationId,
@@ -1158,6 +1165,11 @@ operationsRouter.post(
     }
   },
 );
+operationsRouter.patch("/installations/:id/status", requirePermission("installation.create"), async (request, response, next) => { try { const status = z.enum(["planned", "in_progress", "snag", "completed"]).parse(request.body.status); const installation = await Installation.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); if (!installation) { response.status(404).json({ error: { message: "Installation not found" } }); return; } if (status === "completed" && (installation.checklist.some((entry) => !entry.completed) || !installation.customerSignature)) { response.status(409).json({ error: { message: "Complete the checklist and customer sign-off first" } }); return; } installation.status = status; if (status === "completed") installation.completedAt = new Date(); await installation.save(); response.json({ data: installation }); } catch (e) { next(e); } });
+operationsRouter.patch("/installations/:id/checklist/:index", requirePermission("installation.create"), async (request, response, next) => { try { const installation = await Installation.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); const index = Number(request.params.index); if (!installation || !installation.checklist[index]) { response.status(404).json({ error: { message: "Checklist item not found" } }); return; } installation.checklist[index]!.completed = z.boolean().parse(request.body.completed); installation.checklist[index]!.notes = typeof request.body.notes === "string" ? request.body.notes.slice(0, 500) : undefined; await installation.save(); response.json({ data: installation }); } catch (e) { next(e); } });
+operationsRouter.post("/installations/:id/snags", requirePermission("installation.create"), async (request, response, next) => { try { const description = z.string().trim().min(3).max(500).parse(request.body.description); const data = await Installation.findOneAndUpdate({ _id: request.params.id, organizationId: request.auth!.organizationId }, { $push: { snagItems: { description, resolved: false } }, $set: { status: "snag", updatedBy: request.auth!.userId } }, { new: true }); response.status(201).json({ data }); } catch (e) { next(e); } });
+operationsRouter.post("/installations/:id/sign-off", requirePermission("installation.create"), async (request, response, next) => { try { const input = z.object({ customerSignatory: z.string().trim().min(2), signature: z.string().min(2).max(20_000) }).parse(request.body); const organizationId = request.auth!.organizationId; const installation = await Installation.findOne({ _id: request.params.id, organizationId }); if (!installation) { response.status(404).json({ error: { message: "Installation not found" } }); return; } installation.customerSignatory = input.customerSignatory; installation.customerSignature = input.signature; installation.signedAt = new Date(); const signoff = installation.checklist.find((entry) => entry.label === "Customer sign-off"); if (signoff) signoff.completed = true; await installation.save(); const count = await CompletionCertificate.countDocuments({ organizationId }); const certificate = await CompletionCertificate.create({ organizationId, certificateNumber: `CC-${String(count + 1).padStart(5, "0")}`, installationId: installation._id, projectId: installation.projectId, customerSignatory: input.customerSignatory, completedAt: new Date(), statement: "Installation work inspected and accepted by the customer.", createdBy: request.auth!.userId, updatedBy: request.auth!.userId }); response.status(201).json({ data: { installation, certificate } }); } catch (e) { next(e); } });
+operationsRouter.get("/completion-certificates", async (request, response, next) => { try { response.json({ data: await CompletionCertificate.find({ organizationId: request.auth!.organizationId }).populate("projectId", "name projectNumber").sort({ createdAt: -1 }).lean() }); } catch (e) { next(e); } });
 
 operationsRouter.get("/reports/overview", async (request, response, next) => {
   try {
