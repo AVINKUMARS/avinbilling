@@ -36,6 +36,18 @@ operationsRouter.post('/quotes/:id/approve', requirePermission('quotes.approve')
 });
 
 operationsRouter.get('/payments', async (request, response, next) => { try { response.json({ data: await Payment.find({ organizationId: request.auth!.organizationId }).populate('quoteId', 'quoteNumber').sort({ receivedAt: -1 }).lean() }); } catch (e) { next(e); } });
+operationsRouter.post('/payments', requirePermission('quotes.approve'), async (request, response, next) => {
+  try {
+    const input = z.object({ quoteId: objectId, amountPaise: z.number().int().positive(), paymentType: z.enum(['advance', 'progress', 'final', 'refund']).default('progress'), paymentMethod: z.enum(['cash', 'upi', 'bank', 'cheque', 'card', 'other']), transactionReference: z.string().max(120).optional(), notes: z.string().max(500).optional() }).parse(request.body);
+    const organizationId = request.auth!.organizationId; const quote = await Quote.findOne({ _id: input.quoteId, organizationId, status: 'approved' }).lean();
+    if (!quote) { response.status(400).json({ error: { code: 'QUOTE_NOT_APPROVED', message: 'Approved quotation required' } }); return; }
+    const total = Number((quote.pricingSnapshot as { totalPaise?: number }).totalPaise ?? 0); const existing = await Payment.find({ quoteId: quote._id, organizationId, status: 'recorded' }).lean(); const paid = existing.reduce((sum, payment) => sum + (payment.paymentType === 'refund' ? -payment.amountPaise : payment.amountPaise), 0);
+    if (input.paymentType !== 'refund' && paid + input.amountPaise > total) { response.status(400).json({ error: { code: 'OVERPAYMENT', message: 'Payment exceeds outstanding balance' } }); return; }
+    const count = await Payment.countDocuments({ organizationId }); const data = await Payment.create({ ...input, organizationId, receiptNumber: `REC-${String(count + 1).padStart(5, '0')}`, createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
+    const nextPaid = paid + (input.paymentType === 'refund' ? -input.amountPaise : input.amountPaise); await Invoice.updateMany({ quoteId: quote._id, organizationId }, { $set: { paidPaise: nextPaid, balancePaise: total - nextPaid, status: nextPaid >= total ? 'paid' : 'part_paid', updatedBy: request.auth!.userId } });
+    response.status(201).json({ data });
+  } catch (e) { next(e); }
+});
 operationsRouter.get('/boms', async (request, response, next) => { try { response.json({ data: await Bom.find({ organizationId: request.auth!.organizationId }).populate('quoteId', 'quoteNumber').sort({ createdAt: -1 }).lean() }); } catch (e) { next(e); } });
 operationsRouter.patch('/boms/:id/status', requirePermission('production.update'), async (request, response, next) => { try { const status = z.enum(['preliminary', 'released', 'in_production', 'quality_check', 'ready', 'completed']).parse(request.body.status); const data = await Bom.findOneAndUpdate({ _id: request.params.id, organizationId: request.auth!.organizationId }, { status, updatedBy: request.auth!.userId }, { new: true }); response.json({ data }); } catch (e) { next(e); } });
 

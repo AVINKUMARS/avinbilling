@@ -35,9 +35,17 @@ function QuoteDocument({ quote }: { quote: QuotePdfData }) {
   </Page></Document>;
 }
 
+async function quoteBlob(quote: QuotePdfData) { return pdf(<QuoteDocument quote={quote} />).toBlob(); }
+
 export async function downloadQuotePdf(quote: QuotePdfData) {
-  const blob = await pdf(<QuoteDocument quote={quote} />).toBlob();
+  const blob = await quoteBlob(quote);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${quote.quoteNumber}.pdf`; anchor.click();
   URL.revokeObjectURL(url);
+}
+
+export async function shareQuotePdf(quote: QuotePdfData) {
+  const blob = await quoteBlob(quote); const file = new File([blob], `${quote.quoteNumber}.pdf`, { type: 'application/pdf' });
+  if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) { await navigator.share({ title: `Quotation ${quote.quoteNumber}`, text: `Quotation for ${quote.clientId?.name ?? 'customer'}`, files: [file] }); return true; }
+  return false;
 }

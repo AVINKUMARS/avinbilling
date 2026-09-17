@@ -86,3 +86,21 @@ quoteRouter.post('/', requirePermission('quotes.create'), async (request, respon
     response.status(201).json({ data: quote });
   } catch (error) { next(error); }
 });
+
+quoteRouter.post('/:id/revise', requirePermission('quotes.create'), async (request, response, next) => {
+  try {
+    const input = z.object({ discountPercent: z.number().min(0).max(100).default(0), validDays: z.number().int().min(1).max(365).default(30) }).parse(request.body);
+    const organizationId = request.auth!.organizationId;
+    const source = await Quote.findOne({ _id: request.params.id, organizationId }).lean();
+    if (!source) { response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Quotation not found' } }); return; }
+    if (source.lockedAt || source.status === 'approved') { response.status(409).json({ error: { code: 'LOCKED', message: 'Approved quotations cannot be revised' } }); return; }
+    const latest = await Quote.findOne({ organizationId, quoteNumber: source.quoteNumber }).sort({ revision: -1 }).lean();
+    const snapshot = source.pricingSnapshot as { subtotalPaise: number; gstPercent: number; rateCardId: unknown; rateCardName: string; rateCardVersion: number };
+    const discountPaise = Math.round(snapshot.subtotalPaise * input.discountPercent / 100);
+    const taxablePaise = snapshot.subtotalPaise - discountPaise; const taxPaise = Math.round(taxablePaise * snapshot.gstPercent / 100); const totalPaise = taxablePaise + taxPaise;
+    const { _id, createdAt, updatedAt, ...copy } = source;
+    const data = await Quote.create({ ...copy, revision: (latest?.revision ?? source.revision) + 1, status: 'draft', validUntil: new Date(Date.now() + input.validDays * 86_400_000), pricingSnapshot: { ...snapshot, discountPercent: input.discountPercent, discountPaise, taxablePaise, taxPaise, totalPaise }, options: source.options.map((option) => ({ ...option, taxPaise, totalPaise })), createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
+    await Quote.updateMany({ organizationId, quoteNumber: source.quoteNumber, _id: { $ne: data._id }, status: 'draft' }, { $set: { status: 'revised' } });
+    response.status(201).json({ data });
+  } catch (error) { next(error); }
+});
