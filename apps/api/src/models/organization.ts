@@ -8,7 +8,7 @@ const organizationSchema = new Schema(
     currency: { type: String, default: 'INR' },
     timezone: { type: String, default: 'Asia/Kolkata' },
     enabledModules: [{ type: String, required: true }],
-    industryPacks: [{ key: String, version: Number, enabledAt: Date }],
+    industryPacks: [{ key: String, version: Number, enabledAt: Date, enabled: { type: Boolean, default: true } }],
     settings: {
       gstEnabled: { type: Boolean, default: true },
       financialYearStartMonth: { type: Number, default: 4 },

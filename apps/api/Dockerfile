@@ -5,6 +5,7 @@ COPY apps/api/package.json apps/api/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/module-registry/package.json packages/module-registry/package.json
 COPY packages/industry-packs/upvc/package.json packages/industry-packs/upvc/package.json
+COPY packages/industry-packs/catalog/package.json packages/industry-packs/catalog/package.json
 RUN npm ci
 COPY . .
 RUN npm run build -w @avin/api

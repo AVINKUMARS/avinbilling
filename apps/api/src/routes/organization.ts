@@ -7,6 +7,10 @@ import { createHash, randomBytes } from 'node:crypto';
 import { ApiError } from '../middleware/error-handler.js';
 import { Membership, User } from '../models/user.js';
 import { ActivityLog, Branch, organizationRoles, UserInvitation } from '../models/access.js';
+import { getIndustryPack, industryPackCatalog, type IndustryPackDefinition } from '@avin/industry-packs';
+import { resolveModules } from '@avin/module-registry';
+import { CatalogItem, RateCard } from '../models/catalog.js';
+import { CustomDefinition } from '../models/operations.js';
 
 const settingsInput = z.object({
   companyProfile: z.object({ legalName: z.string().min(2), tradeName: z.string().optional(), proprietorName: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), postalCode: z.string().optional(), phones: z.array(z.string()).max(5), email: z.string().email().optional().or(z.literal('')), gstin: z.string().optional(), pan: z.string().optional(), bankName: z.string().optional(), accountNumber: z.string().optional(), ifsc: z.string().optional(), upiId: z.string().optional() }),
@@ -24,6 +28,247 @@ export const organizationRouter = Router();
 organizationRouter.use(requireAuth);
 organizationRouter.get('/settings', async (request, response, next) => { try { const organization = await Organization.findById(request.auth!.organizationId).lean(); if (!organization) { response.status(404).json({ error: { message: 'Organization not found' } }); return; } const saved = organization.settings as typeof exampleSettings | undefined; response.json({ data: { companyProfile: { ...exampleSettings.companyProfile, ...saved?.companyProfile }, documents: { ...exampleSettings.documents, ...saved?.documents }, theme: { ...exampleSettings.theme, ...saved?.theme } } }); } catch (e) { next(e); } });
 organizationRouter.patch('/settings', requirePermission('settings.update'), async (request, response, next) => { try { const input = settingsInput.parse(request.body); const data = await Organization.findByIdAndUpdate(request.auth!.organizationId, { $set: { 'settings.companyProfile': input.companyProfile, 'settings.documents': input.documents, 'settings.theme': input.theme } }, { new: true }); response.json({ data }); } catch (e) { next(e); } });
+
+async function seedIndustryPackExamples(
+  organizationId: unknown,
+  userId: unknown,
+  pack: IndustryPackDefinition,
+) {
+  const catalogItems = [];
+  for (const item of pack.seedItems) {
+    const catalogItem = await CatalogItem.findOneAndUpdate(
+      { organizationId, code: item.code },
+      {
+        $setOnInsert: {
+          organizationId,
+          categoryKey: item.categoryKey,
+          name: item.name,
+          code: item.code,
+          itemType: item.itemType,
+          unit: item.unit,
+          attributes: { industryPackKey: pack.key, example: true },
+          isActive: true,
+          createdBy: userId,
+          updatedBy: userId,
+        },
+      },
+      { upsert: true, new: true },
+    );
+    catalogItems.push({ catalogItem, seed: item });
+  }
+
+  const rateCardName = `${pack.name} Example Rates`;
+  let rateCard = await RateCard.findOne({ organizationId, name: rateCardName });
+  if (!rateCard) {
+    rateCard = await RateCard.create({
+      organizationId,
+      name: rateCardName,
+      version: 1,
+      customerType: 'retail',
+      effectiveFrom: new Date(),
+      defaultWastagePercent: 10,
+      status: 'draft',
+      lines: catalogItems.map(({ catalogItem, seed }) => ({
+        catalogItemId: catalogItem._id,
+        purchaseRatePaise: seed.purchaseRatePaise,
+        sellingRatePaise: seed.sellingRatePaise,
+        wastagePercent: seed.wastagePercent,
+      })),
+      createdBy: userId,
+      updatedBy: userId,
+    });
+  }
+  return { itemsCreatedOrFound: catalogItems.length, rateCardId: rateCard.id };
+}
+
+async function installPackDefinitions(
+  organizationId: unknown,
+  userId: unknown,
+  pack: IndustryPackDefinition,
+) {
+  const definitions = [
+    ...pack.measurementFields.map((field) => ({
+      definitionType: 'field',
+      key: `${pack.key}-${field.key}`.toLowerCase(),
+      name: `${pack.name}: ${field.label}`,
+      configuration: {
+        entity: 'measurement',
+        label: field.label,
+        fieldType: field.unit === 'qty' || field.unit === 'mm' ? 'number' : 'text',
+        required: field.required,
+        options: [],
+      },
+    })),
+    ...pack.formulas.map((formula) => ({
+      definitionType: 'formula',
+      key: `${pack.key}-${formula.key}`.toLowerCase(),
+      name: `${pack.name}: ${formula.label}`,
+      configuration: {
+        entity: 'measurement',
+        expression: formula.expression,
+        variables: Array.from(new Set(formula.expression.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) ?? [])).filter((variable) => !['min', 'max', 'round'].includes(variable)),
+        resultUnit: formula.resultUnit,
+        decimalPlaces: 3,
+      },
+    })),
+    {
+      definitionType: 'workflow',
+      key: `${pack.key}-workflow`,
+      name: `${pack.name} Workflow`,
+      configuration: {
+        entity: 'project',
+        stages: pack.defaultWorkflow.map((stage, index) => ({
+          key: stage,
+          label: stage.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+          color: ['#64748b', '#0284c7', '#d97706', '#0f766e', '#16a34a'][index % 5],
+          requiresApproval: stage === 'approved' || stage === 'quality-check',
+        })),
+      },
+    },
+  ];
+  for (const definition of definitions) {
+    await CustomDefinition.updateOne(
+      {
+        organizationId,
+        definitionType: definition.definitionType,
+        key: definition.key,
+        version: 1,
+      },
+      {
+        $setOnInsert: {
+          ...definition,
+          organizationId,
+          version: 1,
+          status: 'active',
+          createdBy: userId,
+          updatedBy: userId,
+        },
+      },
+      { upsert: true },
+    );
+  }
+  return definitions.length;
+}
+
+organizationRouter.get('/industry-packs', async (request, response, next) => {
+  try {
+    const organization = await Organization.findById(request.auth!.organizationId)
+      .select('industryPacks enabledModules')
+      .lean();
+    const installed = new Map(
+      (organization?.industryPacks ?? []).map((pack) => [pack.key, pack]),
+    );
+    response.json({
+      data: industryPackCatalog.map((pack) => {
+        const state = installed.get(pack.key);
+        return {
+          ...pack,
+          installed: Boolean(state),
+          enabled: state ? state.enabled !== false : false,
+          installedVersion: state?.version,
+          enabledAt: state?.enabledAt,
+        };
+      }),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+organizationRouter.post('/industry-packs/:key/install', requirePermission('settings.update'), async (request, response, next) => {
+  try {
+    const input = z.object({ seedExamples: z.boolean().default(false) }).parse(request.body ?? {});
+    const pack = getIndustryPack(String(request.params.key));
+    if (!pack) throw new ApiError(404, 'Industry pack not found', 'PACK_NOT_FOUND');
+    const organizationId = request.auth!.organizationId;
+    const existingUpdate = await Organization.updateOne(
+      { _id: organizationId, 'industryPacks.key': pack.key },
+      {
+        $set: {
+          'industryPacks.$.version': pack.version,
+          'industryPacks.$.enabledAt': new Date(),
+          'industryPacks.$.enabled': true,
+        },
+        $addToSet: { enabledModules: { $each: resolveModules(pack.requiredModules) } },
+      },
+    );
+    if (!existingUpdate.matchedCount) {
+      await Organization.updateOne(
+        { _id: organizationId },
+        {
+          $push: { industryPacks: { key: pack.key, version: pack.version, enabledAt: new Date(), enabled: true } },
+          $addToSet: { enabledModules: { $each: resolveModules(pack.requiredModules) } },
+        },
+      );
+    }
+    const definitionsInstalled = await installPackDefinitions(
+      organizationId,
+      request.auth!.userId,
+      pack,
+    );
+    const examples = input.seedExamples
+      ? await seedIndustryPackExamples(organizationId, request.auth!.userId, pack)
+      : undefined;
+    await ActivityLog.create({
+      organizationId,
+      userId: request.auth!.userId,
+      action: 'industry-pack.installed',
+      subjectType: 'industry-pack',
+      subjectId: pack.key,
+      description: `Installed ${pack.name} industry pack`,
+      metadata: { version: pack.version, seedExamples: input.seedExamples },
+    });
+    response.status(201).json({
+      data: { key: pack.key, version: pack.version, definitionsInstalled, examples },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+organizationRouter.post('/industry-packs/:key/seed', requirePermission('settings.update'), async (request, response, next) => {
+  try {
+    const pack = getIndustryPack(String(request.params.key));
+    if (!pack) throw new ApiError(404, 'Industry pack not found', 'PACK_NOT_FOUND');
+    const organization = await Organization.findOne({
+      _id: request.auth!.organizationId,
+      'industryPacks.key': pack.key,
+    }).lean();
+    if (!organization) throw new ApiError(409, 'Install the industry pack before adding examples', 'PACK_NOT_INSTALLED');
+    const data = await seedIndustryPackExamples(
+      request.auth!.organizationId,
+      request.auth!.userId,
+      pack,
+    );
+    response.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+organizationRouter.patch('/industry-packs/:key', requirePermission('settings.update'), async (request, response, next) => {
+  try {
+    const input = z.object({ enabled: z.boolean() }).parse(request.body);
+    const pack = getIndustryPack(String(request.params.key));
+    if (!pack) throw new ApiError(404, 'Industry pack not found', 'PACK_NOT_FOUND');
+    const result = await Organization.updateOne(
+      { _id: request.auth!.organizationId, 'industryPacks.key': pack.key },
+      { $set: { 'industryPacks.$.enabled': input.enabled } },
+    );
+    if (!result.matchedCount) throw new ApiError(404, 'Industry pack is not installed', 'PACK_NOT_INSTALLED');
+    await ActivityLog.create({
+      organizationId: request.auth!.organizationId,
+      userId: request.auth!.userId,
+      action: input.enabled ? 'industry-pack.enabled' : 'industry-pack.disabled',
+      subjectType: 'industry-pack',
+      subjectId: pack.key,
+      description: `${input.enabled ? 'Enabled' : 'Disabled'} ${pack.name} industry pack`,
+    });
+    response.json({ data: { key: pack.key, enabled: input.enabled } });
+  } catch (error) {
+    next(error);
+  }
+});
 
 const permissionCatalog = [
   ['clients.create', 'Create and edit customers'],

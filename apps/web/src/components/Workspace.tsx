@@ -33,6 +33,10 @@ import type { QuotePdfData } from "./QuotePdf";
 import type { InvoicePdfData } from "./InvoicePdf";
 import { ConnectivityBadge } from "./ConnectivityBadge";
 import { CustomBuilders } from "./CustomBuilders";
+import {
+  IndustryPackManager,
+  type OrganizationIndustryPack,
+} from "./IndustryPacks";
 
 type User = { id: string; name: string; email: string };
 type Page =
@@ -321,6 +325,9 @@ export function Workspace({
   const [rateCards, setRateCards] = useState<RateCard[]>([]);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [quotes, setQuotes] = useState<QuotePdfData[]>([]);
+  const [industryPacks, setIndustryPacks] = useState<
+    OrganizationIndustryPack[]
+  >([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -349,6 +356,7 @@ export function Workspace({
         nextRateCards,
         nextMeasurements,
         nextQuotes,
+        nextIndustryPacks,
       ] = await Promise.all([
         apiRequest<Summary>("/dashboard/summary"),
         apiRequest<Customer[]>("/clients"),
@@ -358,6 +366,7 @@ export function Workspace({
         apiRequest<RateCard[]>("/catalog/rate-cards"),
         apiRequest<Measurement[]>("/measurements"),
         apiRequest<QuotePdfData[]>("/quotes"),
+        apiRequest<OrganizationIndustryPack[]>("/organization/industry-packs"),
       ]);
       setSummary(nextSummary);
       setCustomers(nextCustomers);
@@ -367,6 +376,7 @@ export function Workspace({
       setRateCards(nextRateCards);
       setMeasurements(nextMeasurements);
       setQuotes(nextQuotes);
+      setIndustryPacks(nextIndustryPacks);
     } catch (problem) {
       setError(
         problem instanceof Error ? problem.message : "Unable to load workspace",
@@ -1112,10 +1122,20 @@ export function Workspace({
                   name="categoryKey"
                   className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3"
                 >
-                  <option value="upvc-window">UPVC Window</option>
-                  <option value="upvc-door">UPVC Door</option>
-                  <option value="kitchen">Kitchen</option>
-                  <option value="wardrobe">Wardrobe</option>
+                  {industryPacks
+                    .filter((pack) => pack.enabled)
+                    .flatMap((pack) => pack.categories)
+                    .filter(
+                      (category, index, categories) =>
+                        categories.findIndex(
+                          (candidate) => candidate.key === category.key,
+                        ) === index,
+                    )
+                    .map((category) => (
+                      <option key={category.key} value={category.key}>
+                        {category.name}
+                      </option>
+                    ))}
                   <option value="custom">Custom</option>
                 </select>
               </Field>
@@ -1975,7 +1995,7 @@ function SettingsPage({ brands }: { brands: number }) {
         {[
           ["Organization", "Editable company, GST, bank and document details"],
           ["Modules", "Enable business capabilities and dependencies"],
-          ["Industry packs", `UPVC enabled · ${brands} brands configured`],
+          ["Industry packs", `Business-specific defaults · ${brands} brands configured`],
           ["Users & roles", "Permissions for office, factory and installation"],
           ["Number sequences", "Quotation, order and invoice numbering"],
           ["Audit history", "Protected record of important changes"],
@@ -1989,6 +2009,7 @@ function SettingsPage({ brands }: { brands: number }) {
           </article>
         ))}
       </div>
+      <IndustryPackManager />
       <form
         onSubmit={save}
         className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card md:p-8"

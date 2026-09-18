@@ -13,7 +13,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ## Current priority
 
-**Next package:** Additional Industry Packs
+**In progress:** Additional Industry Packs
 
 ## Package summary
 
@@ -32,7 +32,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 11 | Offline Synchronization | Completed | IndexedDB cache, mutation queue, retries, conflicts and duplicate protection |
 | 12 | Users, Roles and Branches | Completed | Invitations, permissions, branch assignment, password controls and activity history |
 | 13 | Custom Builders | Completed | Fields, forms, formulas, workflows and document-template builders |
-| 14 | Additional Industry Packs | Pending | Kitchen, wardrobe, interiors, aluminium, glass, contractor and general business |
+| 14 | Additional Industry Packs | In progress | Kitchen, wardrobe, interiors, aluminium, glass, contractor and general business |
 | 15 | Runtime Customization Integration | Pending | Use active custom definitions inside real screens, calculations and documents |
 | 16 | Advanced Project Costing | Pending | Complete estimated-versus-actual job costing |
 | 17 | Branch Data Isolation | Pending | Active branch selector and branch-restricted business records |
@@ -164,7 +164,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ## Pending package details
 
-### [ ] 14. Additional Industry Packs
+### [~] 14. Additional Industry Packs
 
 - [ ] Create reusable industry-pack contract and installer
 - [ ] Expand the UPVC pack with full product, measurement, formula, BOM and workflow defaults

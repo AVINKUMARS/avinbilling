@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@avin/industry-upvc": "*",
+    "@avin/industry-packs": "*",
     "@avin/module-registry": "*",
     "@avin/shared": "*",
     "bcryptjs": "^3.0.2",

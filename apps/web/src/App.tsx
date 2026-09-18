@@ -9,6 +9,15 @@ const setupSteps = ['Business', 'Modules', 'Industry packs', 'Administrator'];
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:4000/api/v1';
 
+type SetupIndustryPack = {
+  key: string;
+  name: string;
+  description: string;
+  color: string;
+  categories: unknown[];
+  measurementFields: unknown[];
+};
+
 function SetupWizard({ onCreated }: { onCreated: () => void }) {
   const { enabledModules, industryPacks, toggleModule, togglePack } = useSetupStore();
   const [currentStep, setCurrentStep] = useState(1);
@@ -18,6 +27,17 @@ function SetupWizard({ onCreated }: { onCreated: () => void }) {
   const [password, setPassword] = useState('');
   const [submission, setSubmission] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const [availablePacks, setAvailablePacks] = useState<SetupIndustryPack[]>([]);
+
+  useEffect(() => {
+    void fetch(`${apiUrl}/platform/industry-packs`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Unable to load industry packs');
+        return response.json() as Promise<{ data: SetupIndustryPack[] }>;
+      })
+      .then((result) => setAvailablePacks(result.data))
+      .catch(() => setAvailablePacks([]));
+  }, []);
 
   async function completeSetup(event?: FormEvent) {
     event?.preventDefault();
@@ -128,38 +148,41 @@ function SetupWizard({ onCreated }: { onCreated: () => void }) {
               ))}
             </div>
 
-            <section className={`${currentStep === 2 ? 'block' : 'hidden'} mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-card md:p-8`}>
-              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-600">First industry pack</p>
-                  <h2 className="mt-2 text-2xl font-black tracking-tight text-ink">UPVC windows and doors</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Adds window measurements, brand and profile series, compatibility rules, comparison options, BOMs, cutting lists and installation stages.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => togglePack('upvc')}
-                  className={`flex min-w-40 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition ${industryPacks.includes('upvc') ? 'bg-brand-600 text-white' : 'border border-slate-300 bg-white text-slate-700'}`}
-                >
-                  {industryPacks.includes('upvc') ? <PackageCheck size={18} /> : <Boxes size={18} />}
-                  {industryPacks.includes('upvc') ? 'Pack enabled' : 'Enable pack'}
-                </button>
-              </div>
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                {[
-                  [Building2, 'Project ready', 'Buildings, floors, rooms and packages'],
-                  [Boxes, 'Brand aware', 'Compare manufacturers from one measurement'],
-                  [PackageCheck, 'Production ready', 'BOM, cutting and installation workflow'],
-                ].map(([Icon, title, text]) => {
-                  const DisplayIcon = Icon as typeof Building2;
+            <section className={`${currentStep === 2 ? 'block' : 'hidden'} mt-8`}>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {availablePacks.map((pack) => {
+                  const enabled = industryPacks.includes(pack.key);
                   return (
-                    <div key={String(title)} className="rounded-xl bg-slate-50 p-4">
-                      <DisplayIcon className="text-brand-600" size={19} />
-                      <div className="mt-3 text-sm font-bold text-ink">{String(title)}</div>
-                      <div className="mt-1 text-xs leading-5 text-slate-500">{String(text)}</div>
-                    </div>
+                    <button
+                      key={pack.key}
+                      type="button"
+                      onClick={() => togglePack(pack.key)}
+                      className={`rounded-2xl border p-5 text-left shadow-card transition hover:-translate-y-0.5 ${enabled ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-100' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="grid size-11 place-items-center rounded-xl text-white" style={{ backgroundColor: pack.color }}>
+                          {enabled ? <PackageCheck size={21} /> : <Boxes size={21} />}
+                        </span>
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${enabled ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                          {enabled ? 'Selected' : 'Select'}
+                        </span>
+                      </div>
+                      <h2 className="mt-4 text-lg font-black tracking-tight text-ink">{pack.name}</h2>
+                      <p className="mt-2 min-h-12 text-sm leading-6 text-slate-600">{pack.description}</p>
+                      <div className="mt-4 flex gap-3 text-xs font-bold text-slate-500">
+                        <span>{pack.categories.length} categories</span>
+                        <span>{pack.measurementFields.length} fields</span>
+                      </div>
+                    </button>
                   );
                 })}
               </div>
+              {availablePacks.length === 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm font-semibold text-amber-800">
+                  Industry packs are still loading. Check that the API is running, then retry.
+                </div>
+              )}
+              <p className="mt-4 text-sm text-slate-500">Choose one or more packs. You can install, disable, or add example products later from Settings without deleting existing business records.</p>
             </section>
 
             <form data-admin-form onSubmit={completeSetup} className={`${currentStep === 3 ? 'block' : 'hidden'} mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-card md:p-8`}>
