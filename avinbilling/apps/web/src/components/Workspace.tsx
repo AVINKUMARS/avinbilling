@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   Tags,
+  Target,
   Trash2,
   Truck,
   Users,
@@ -42,6 +43,7 @@ import { RuntimeFields, RuntimeRecordFields, extractCustomValues } from "./Runti
 import { useAuthStore } from "../store/auth-store";
 import { ProjectCosting } from "./ProjectCosting";
 import { ServiceAndWarranty } from "./ServiceAndWarranty";
+import { CrmDashboard } from "./CrmDashboard";
 
 type User = { id: string; name: string; email: string };
 type Page =
@@ -61,7 +63,8 @@ type Page =
   | "costing"
   | "customize"
   | "settings"
-  | "service";
+  | "service"
+  | "crm";
 type Customer = {
   _id: string;
   clientCode: string;
@@ -218,6 +221,7 @@ function applyTheme(theme: ThemeSettings) {
 
 const navItems: Array<{ key: Page; label: string; icon: typeof Gauge }> = [
   { key: "dashboard", label: "Dashboard", icon: Gauge },
+  { key: "crm", label: "CRM & Leads", icon: Target },
   { key: "customers", label: "Customers", icon: Users },
   { key: "brands", label: "Brands & materials", icon: Tags },
   { key: "products", label: "Products", icon: Package },
@@ -558,6 +562,7 @@ export function Workspace({
 
   const titles: Record<Page, [string, string]> = {
     dashboard: ["Business overview", "Live information from your organization"],
+    crm: ["CRM & Leads", "Pipeline, follow-ups and conversions"],
     customers: ["Customers", "Manage clients and project locations"],
     brands: ["Brands & materials", "Configure manufacturers used in estimates"],
     projects: ["Projects", "Buildings, floors, rooms and work packages"],
@@ -664,7 +669,8 @@ export function Workspace({
               </h1>
               <p className="mt-2 text-slate-600">{titles[page][1]}</p>
             </div>
-            {page === "customers" && (
+            {page === "crm" && <CrmDashboard />}
+          {page === "customers" && (
               <button
                 onClick={() => setModal("customer")}
                 className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"

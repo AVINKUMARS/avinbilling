@@ -22,8 +22,9 @@ import { idempotency } from './middleware/idempotency.js';
 import { customizationRouter } from './routes/customization.js';
 import { costingRouter } from './routes/costing.js';
 import { serviceRouter } from './routes/service.js';
-export const app = express();
+import { crmRouter } from './routes/crm.js';
 
+export const app = express();
 app.use(helmet());
 app.use(cors({ origin: env.WEB_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
@@ -48,6 +49,7 @@ protectedRouter.use('/organization', organizationRouter);
 protectedRouter.use('/customization', customizationRouter);
 protectedRouter.use('/costing', costingRouter);
 protectedRouter.use('/service', serviceRouter);
+protectedRouter.use('/crm', crmRouter);
 app.use('/api/v1', protectedRouter);
 
 app.use((_request, response) => response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } }));

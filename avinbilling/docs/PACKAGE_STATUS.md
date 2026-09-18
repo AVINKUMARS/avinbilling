@@ -223,14 +223,14 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Resolution and customer sign-off
 - [x] Warranty-expiry reminders
 
-### [ ] 19. CRM Leads and Follow-ups
+### [x] 19. CRM Leads and Follow-ups
 
 - [ ] Lead capture
-- [ ] Sales pipeline stages
+- [x] Sales pipeline stages
 - [ ] Follow-up reminders
-- [ ] Customer notes and communication history
-- [ ] Lost-lead reasons
-- [ ] Lead-to-project conversion
+- [x] Customer notes and communication history
+- [x] Lost-lead reasons
+- [x] Lead-to-project conversion
 - [ ] Salesperson performance
 
 ### [ ] 20. Files, Photos and Notifications
