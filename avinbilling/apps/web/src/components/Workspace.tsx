@@ -5,6 +5,7 @@ import {
   CircleDollarSign,
   Copy,
   Factory,
+  FolderArchive,
   FileText,
   Gauge,
   GitBranch,
@@ -44,6 +45,9 @@ import { useAuthStore } from "../store/auth-store";
 import { ProjectCosting } from "./ProjectCosting";
 import { ServiceAndWarranty } from "./ServiceAndWarranty";
 import { CrmDashboard } from "./CrmDashboard";
+import { BranchAdministration } from "./BranchAdministration";
+import { FilesNotifications } from "./FilesNotifications";
+import { SecurityCenter } from "./SecurityCenter";
 
 type User = { id: string; name: string; email: string };
 type Page =
@@ -64,7 +68,10 @@ type Page =
   | "customize"
   | "settings"
   | "service"
-  | "crm";
+  | "crm"
+  | "branches"
+  | "files"
+  | "security";
 type Customer = {
   _id: string;
   clientCode: string;
@@ -237,6 +244,9 @@ const navItems: Array<{ key: Page; label: string; icon: typeof Gauge }> = [
   { key: "costing", label: "Project costing", icon: CircleDollarSign },
   { key: "customize", label: "Custom builders", icon: WandSparkles },
   { key: "service", label: "Service & warranty", icon: Wrench },
+  { key: "branches", label: "Branches & warehouses", icon: GitBranch },
+  { key: "files", label: "Files & notifications", icon: FolderArchive },
+  { key: "security", label: "Security & audit", icon: ShieldCheck },
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -294,6 +304,7 @@ function BranchSelector() {
         const active = items.filter((item) => item.isActive);
         setBranches(active);
         if (activeBranchId && !active.some((item) => item._id === activeBranchId)) setActiveBranchId(null);
+        if (!activeBranchId && active.length === 1) setActiveBranchId(active[0]!._id);
       })
       .catch(() => setBranches([]));
   }, [activeBranchId, setActiveBranchId]);
@@ -616,6 +627,9 @@ export function Workspace({
       "Service & warranty",
       "Manage warranty claims and technician visits",
     ],
+    branches: ["Branches & warehouses", "Transfers, numbering and branch-specific stock locations"],
+    files: ["Files & notifications", "Project photos, proof documents, reminders and sharing"],
+    security: ["Security & audit", "Sessions, security events, audit history and data export"],
   };
 
   return (
@@ -871,6 +885,9 @@ export function Workspace({
           )}
           {page === "costing" && <ProjectCosting projects={projects} />}
           {page === "service" && <ServiceAndWarranty />}
+          {page === "branches" && <BranchAdministration />}
+          {page === "files" && <FilesNotifications />}
+          {page === "security" && <SecurityCenter />}
           {page === "customize" && (
             <OperationsPanel
               kind="customize"

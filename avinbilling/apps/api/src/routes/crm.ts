@@ -5,6 +5,7 @@ import { Lead, FollowUp } from '../models/crm.js';
 import { Client } from '../models/client.js';
 import { Project } from '../models/project.js';
 import { User } from '../models/user.js';
+import { nextBranchNumber } from '../services/branching.js';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 
@@ -36,12 +37,12 @@ crmRouter.get('/leads', async (request, response, next) => {
 crmRouter.post('/leads', requirePermission('clients.create'), async (request, response, next) => {
   try {
     const input = leadInput.parse(request.body);
-    const count = await Lead.countDocuments(tenantFilter(request.auth!));
+    const sequence = await nextBranchNumber(request.auth!, 'lead', 'LD');
     const data = await Lead.create({
       ...input,
       ...tenantFilter(request.auth!),
-      leadNumber: `LD-${String(count + 1).padStart(5, '0')}`,
-      branchId: request.auth!.activeBranchId,
+      leadNumber: sequence.number,
+      branchId: sequence.branchId,
       createdBy: request.auth!.userId,
       updatedBy: request.auth!.userId,
     });
@@ -81,11 +82,11 @@ crmRouter.post('/leads/:id/convert', requirePermission('clients.create'), async 
     }
 
     // 1. Create Client
-    const clientCount = await Client.countDocuments(tenantFilter(request.auth!));
+    const clientSequence = await nextBranchNumber(request.auth!, 'client', 'CLI');
     const newClient = await Client.create({
       ...tenantFilter(request.auth!),
-      clientCode: `C-${String(clientCount + 1).padStart(5, '0')}`,
-      branchId: request.auth!.activeBranchId,
+      clientCode: clientSequence.number,
+      branchId: clientSequence.branchId,
       name: lead.name,
       phone: lead.phone,
       email: lead.email,
@@ -96,11 +97,11 @@ crmRouter.post('/leads/:id/convert', requirePermission('clients.create'), async 
     });
 
     // 2. Create Project
-    const projectCount = await Project.countDocuments(tenantFilter(request.auth!));
+    const projectSequence = await nextBranchNumber(request.auth!, 'project', 'PRJ');
     const newProject = await Project.create({
       ...tenantFilter(request.auth!),
-      projectNumber: `P-${String(projectCount + 1).padStart(5, '0')}`,
-      branchId: request.auth!.activeBranchId,
+      projectNumber: projectSequence.number,
+      branchId: projectSequence.branchId,
       name: `${lead.name} Project`,
       clientId: newClient._id,
       projectType: 'Converted Lead',

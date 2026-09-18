@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { Project } from '../models/project.js';
 import { requireAuth, requirePermission, tenantFilter } from '../middleware/auth.js';
 import { CustomDefinition } from '../models/operations.js';
+import { nextBranchNumber } from '../services/branching.js';
 
 const projectInput = z.object({
   name: z.string().trim().min(2).max(160),
@@ -34,7 +35,7 @@ projectRouter.get('/', async (request, response, next) => {
 projectRouter.post('/', requirePermission('projects.create'), async (request, response, next) => {
   try {
     const input = projectInput.parse(request.body);
-    const count = await Project.countDocuments(tenantFilter(request.auth!));
+    const sequence = await nextBranchNumber(request.auth!, 'project', 'PRJ');
     const workflowDefinition = await CustomDefinition.findOne({
       organizationId: request.auth!.organizationId,
       definitionType: 'workflow',
@@ -44,9 +45,9 @@ projectRouter.post('/', requirePermission('projects.create'), async (request, re
     const workflowStages = (workflowDefinition?.configuration as { stages?: Array<{ key: string }> } | undefined)?.stages ?? [];
     const data = await Project.create({
       ...input,
-      projectNumber: `PRJ-${String(count + 1).padStart(5, '0')}`,
+      projectNumber: sequence.number,
       organizationId: request.auth!.organizationId,
-      branchId: request.auth!.activeBranchId,
+      branchId: sequence.branchId,
       createdBy: request.auth!.userId,
       updatedBy: request.auth!.userId,
       areas: [],

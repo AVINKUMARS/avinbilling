@@ -19,10 +19,12 @@ This report records what was verified in the codebase after packages 16–19 wer
 | ---: | --- | --- |
 | 1–15 | Implemented | Existing modules compile and build; full workflow regression remains in package 23. |
 | 16. Advanced Project Costing | Implemented | Budget, cost, variation, material and profitability routes and UI exist. |
-| 17. Branch Data Isolation | In progress | Active-branch selection, permitted-branch filtering and filter unit tests exist. Transfer workflow, branch numbering/warehouses and a complete mutation-route audit remain. |
+| 17. Branch Data Isolation | Implemented | Active-branch selection, transfers, branch document sequences, warehouses, stock transfer and scoped mutation routes exist. |
 | 18. Service and Warranty | Implemented | Warranty, complaint/ticket creation, scheduling, resolution, charges, sign-off and expiry indication exist. Full real-data workflow testing remains in package 23. |
 | 19. CRM Leads and Follow-ups | Implemented | Lead capture, pipeline movement, lost reasons, follow-ups, reminders, conversion and performance reporting exist. |
-| 20–23 | Pending | Files/notifications, security hardening, production deployment and full QA have not been completed. |
+| 20. Files, Photos and Notifications | Implemented | Secure local attachment storage, project photos/proof, notification preferences and WhatsApp/email handoff exist. |
+| 21. Advanced Audit and Security | Implemented | Rotating sessions, rate limits, recovery, security events, audit chain and exports exist. |
+| 22–23 | Pending | Production deployment and full QA have not been completed. |
 
 ## Corrections made during this audit
 
@@ -37,7 +39,6 @@ This report records what was verified in the codebase after packages 16–19 wer
 
 ## Remaining release risks
 
-- Package 17 is not complete until transfers, branch-specific document sequences/warehouses and all branch-sensitive mutations have been tested.
-- Package 21 security work, including production session strategy, rate limiting and security testing, is still pending.
+- Independent penetration testing and the full device/business acceptance suite remain release gates in package 23.
 - The MongoDB credential shared during development must be rotated before production.
 - Deployment and device/PWA acceptance tests have not been completed.

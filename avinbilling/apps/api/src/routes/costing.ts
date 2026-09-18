@@ -73,7 +73,7 @@ costingRouter.put("/projects/:projectId/budget", requirePermission("costing.mana
 
 costingRouter.post("/projects/:projectId/budget/submit", requirePermission("costing.manage"), async (request, response, next) => {
   try {
-    const data = await ProjectBudget.findOneAndUpdate({ organizationId: request.auth!.organizationId, projectId: objectId.parse(request.params.projectId), status: "draft" }, { $set: { status: "submitted", updatedBy: request.auth!.userId } }, { new: true });
+    const data = await ProjectBudget.findOneAndUpdate({ ...tenantFilter(request.auth!), projectId: objectId.parse(request.params.projectId), status: "draft" }, { $set: { status: "submitted", updatedBy: request.auth!.userId } }, { new: true });
     if (!data) throw new ApiError(409, "Save a draft budget before submitting", "BUDGET_NOT_DRAFT");
     response.json({ data });
   } catch (error) { next(error); }
@@ -81,7 +81,7 @@ costingRouter.post("/projects/:projectId/budget/submit", requirePermission("cost
 
 costingRouter.post("/projects/:projectId/budget/approve", requirePermission("costing.approve"), async (request, response, next) => {
   try {
-    const data = await ProjectBudget.findOneAndUpdate({ organizationId: request.auth!.organizationId, projectId: objectId.parse(request.params.projectId), status: "submitted" }, { $set: { status: "approved", approvedBy: request.auth!.userId, approvedAt: new Date(), updatedBy: request.auth!.userId } }, { new: true });
+    const data = await ProjectBudget.findOneAndUpdate({ ...tenantFilter(request.auth!), projectId: objectId.parse(request.params.projectId), status: "submitted" }, { $set: { status: "approved", approvedBy: request.auth!.userId, approvedAt: new Date(), updatedBy: request.auth!.userId } }, { new: true });
     if (!data) throw new ApiError(409, "Only submitted budgets can be approved", "BUDGET_NOT_SUBMITTED");
     response.json({ data });
   } catch (error) { next(error); }
@@ -104,7 +104,7 @@ costingRouter.post("/projects/:projectId/costs", requirePermission("costing.mana
 costingRouter.patch("/costs/:id/status", requirePermission("costing.approve"), async (request, response, next) => {
   try {
     const status = z.enum(["approved", "rejected"]).parse(request.body.status);
-    const data = await ProjectCost.findOneAndUpdate({ _id: objectId.parse(request.params.id), organizationId: request.auth!.organizationId, status: "pending" }, { $set: { status, approvedBy: request.auth!.userId, approvedAt: new Date(), updatedBy: request.auth!.userId } }, { new: true });
+    const data = await ProjectCost.findOneAndUpdate({ _id: objectId.parse(request.params.id), ...tenantFilter(request.auth!), status: "pending" }, { $set: { status, approvedBy: request.auth!.userId, approvedAt: new Date(), updatedBy: request.auth!.userId } }, { new: true });
     if (!data) throw new ApiError(409, "Only pending costs can be approved or rejected", "COST_NOT_PENDING");
     response.json({ data });
   } catch (error) { next(error); }
@@ -126,7 +126,7 @@ costingRouter.post("/projects/:projectId/changes", requirePermission("costing.ma
 costingRouter.patch("/changes/:id/status", requirePermission("costing.approve"), async (request, response, next) => {
   try {
     const status = z.enum(["approved", "rejected"]).parse(request.body.status);
-    const data = await ChangeOrder.findOneAndUpdate({ _id: objectId.parse(request.params.id), organizationId: request.auth!.organizationId, status: "submitted" }, { $set: { status, approvedBy: request.auth!.userId, approvedAt: new Date(), updatedBy: request.auth!.userId } }, { new: true });
+    const data = await ChangeOrder.findOneAndUpdate({ _id: objectId.parse(request.params.id), ...tenantFilter(request.auth!), status: "submitted" }, { $set: { status, approvedBy: request.auth!.userId, approvedAt: new Date(), updatedBy: request.auth!.userId } }, { new: true });
     if (!data) throw new ApiError(409, "Only submitted variations can be approved or rejected", "CHANGE_NOT_SUBMITTED");
     response.json({ data });
   } catch (error) { next(error); }

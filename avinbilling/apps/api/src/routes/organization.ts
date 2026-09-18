@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { ApiError } from '../middleware/error-handler.js';
 import { Membership, User } from '../models/user.js';
-import { ActivityLog, Branch, organizationRoles, UserInvitation } from '../models/access.js';
+import { ActivityLog, Branch, organizationRoles, UserInvitation, Warehouse } from '../models/access.js';
 import { getIndustryPack, industryPackCatalog, type IndustryPackDefinition } from '@avin/industry-packs';
 import { resolveModules } from '@avin/module-registry';
 import { CatalogItem, RateCard } from '../models/catalog.js';
@@ -289,6 +289,10 @@ const permissionCatalog = [
   ['settings.update', 'Change organization and document settings'],
   ['settings.customize', 'Manage custom builders'],
   ['users.manage', 'Manage branches, users and permissions'],
+  ['files.manage', 'Upload and manage files and photos'],
+  ['notifications.send', 'Send customer and team notifications'],
+  ['security.view', 'View security events and audit history'],
+  ['security.export', 'Export organization business data'],
 ] as const;
 
 const roleDefaults: Record<(typeof organizationRoles)[number], string[]> = {
@@ -341,6 +345,13 @@ organizationRouter.get('/access/options', (_request, response) => {
 
 organizationRouter.get('/branches', async (request, response, next) => {
   try {
+    if (request.auth!.role === 'owner' || request.auth!.role === 'admin') {
+      const existing = await Branch.countDocuments({ organizationId: request.auth!.organizationId });
+      if (existing === 0) {
+        const branch = await Branch.create({ organizationId: request.auth!.organizationId, code: 'MAIN', name: 'Main Branch', createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
+        await Warehouse.create({ organizationId: request.auth!.organizationId, branchId: branch._id, code: 'MAIN', name: 'Main Warehouse', isDefault: true, createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
+      }
+    }
     const filter = request.auth!.role === 'owner' || request.auth!.role === 'admin'
       ? { organizationId: request.auth!.organizationId }
       : { organizationId: request.auth!.organizationId, _id: { $in: request.auth!.branchIds } };
@@ -364,6 +375,7 @@ organizationRouter.post('/branches', requirePermission('users.manage'), async (r
       createdBy: request.auth!.userId,
       updatedBy: request.auth!.userId,
     });
+    await Warehouse.create({ organizationId: request.auth!.organizationId, branchId: branch._id, code: 'MAIN', name: `${branch.name} Warehouse`, isDefault: true, createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
     await logAccessActivity({
       organizationId: request.auth!.organizationId,
       userId: request.auth!.userId,

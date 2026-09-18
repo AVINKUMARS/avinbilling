@@ -4,6 +4,7 @@ import { requireAuth, requirePermission, tenantFilter } from '../middleware/auth
 import { Warranty, ServiceTicket } from '../models/service.js';
 import { Project } from '../models/project.js';
 import { Client } from '../models/client.js';
+import { nextBranchNumber } from '../services/branching.js';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 
@@ -35,12 +36,12 @@ serviceRouter.get('/warranties', async (request, response, next) => {
 serviceRouter.post('/warranties', requirePermission('installation.create'), async (request, response, next) => {
   try {
     const input = warrantyInput.parse(request.body);
-    const count = await Warranty.countDocuments(tenantFilter(request.auth!));
+    const sequence = await nextBranchNumber(request.auth!, 'warranty', 'WAR');
     const data = await Warranty.create({
       ...input,
       ...tenantFilter(request.auth!),
-      warrantyNumber: `WAR-${String(count + 1).padStart(5, '0')}`,
-      branchId: request.auth!.activeBranchId,
+      warrantyNumber: sequence.number,
+      branchId: sequence.branchId,
       createdBy: request.auth!.userId,
       updatedBy: request.auth!.userId,
     });
@@ -70,12 +71,12 @@ serviceRouter.get('/tickets', async (request, response, next) => {
 serviceRouter.post('/tickets', requirePermission('installation.create'), async (request, response, next) => {
   try {
     const input = ticketInput.parse(request.body);
-    const count = await ServiceTicket.countDocuments(tenantFilter(request.auth!));
+    const sequence = await nextBranchNumber(request.auth!, 'service', 'SRV');
     const data = await ServiceTicket.create({
       ...input,
       ...tenantFilter(request.auth!),
-      ticketNumber: `SRV-${String(count + 1).padStart(5, '0')}`,
-      branchId: request.auth!.activeBranchId,
+      ticketNumber: sequence.number,
+      branchId: sequence.branchId,
       createdBy: request.auth!.userId,
       updatedBy: request.auth!.userId,
     });

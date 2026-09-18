@@ -28,3 +28,24 @@ const membershipSchema = new Schema(
 
 membershipSchema.index({ organizationId: 1, userId: 1 }, { unique: true });
 export const Membership = model('Membership', membershipSchema);
+
+const refreshSessionSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  organizationId: { type: Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
+  tokenHash: { type: String, required: true, unique: true, select: false },
+  expiresAt: { type: Date, required: true },
+  revokedAt: Date,
+  ipAddress: String,
+  userAgent: String,
+}, { timestamps: true });
+refreshSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+export const RefreshSession = model('RefreshSession', refreshSessionSchema);
+
+const passwordResetSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  tokenHash: { type: String, required: true, unique: true, select: false },
+  expiresAt: { type: Date, required: true },
+  usedAt: Date,
+}, { timestamps: true });
+passwordResetSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+export const PasswordResetToken = model('PasswordResetToken', passwordResetSchema);

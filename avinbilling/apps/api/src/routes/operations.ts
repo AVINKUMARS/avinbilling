@@ -21,6 +21,7 @@ import {
   StockMovement,
   Supplier,
 } from "../models/operations.js";
+import { nextBranchNumber, resolveWriteBranch } from '../services/branching.js';
 
 export const operationsRouter = Router();
 operationsRouter.use(requireAuth);
@@ -43,7 +44,7 @@ operationsRouter.post(
       await session.withTransaction(async () => {
         const quote = await Quote.findOne({
           _id: request.params.id,
-          organizationId,
+          ...tenantFilter(request.auth!),
         }).session(session);
         if (!quote) throw new Error("Quotation not found");
         if (quote.status === "approved" || quote.lockedAt)
@@ -54,29 +55,25 @@ operationsRouter.post(
         );
         if (input.amountPaise > totalPaise)
           throw new Error("Advance cannot exceed quotation total");
-        const paymentCount = await Payment.countDocuments({
-          organizationId,
-        }).session(session);
+        const paymentSequence = await nextBranchNumber(request.auth!, 'receipt', 'REC');
         const [payment] = await Payment.create(
           [
             {
               organizationId,
               quoteId: quote._id,
-              receiptNumber: `REC-${String(paymentCount + 1).padStart(5, "0")}`,
+              receiptNumber: paymentSequence.number,
               amountPaise: input.amountPaise,
               paymentType: "advance",
               paymentMethod: input.paymentMethod,
               transactionReference: input.transactionReference,
-              branchId: request.auth!.activeBranchId,
+              branchId: paymentSequence.branchId,
         createdBy: request.auth!.userId,
               updatedBy: request.auth!.userId,
             },
           ],
           { session },
         );
-        const bomCount = await Bom.countDocuments({ organizationId }).session(
-          session,
-        );
+        const bomSequence = await nextBranchNumber(request.auth!, 'bom', 'BOM');
         const bomItems = quote.items.flatMap((item) => {
           const width = Number(
             item.measurements.find((entry) => entry.key === "widthMm")?.value ??
@@ -180,20 +177,19 @@ operationsRouter.post(
           "Hardware operation tested",
           "Final cleaning completed",
         ].map((label) => ({ label, completed: false }));
-        const sequence = String(bomCount + 1).padStart(5, "0");
         const [bom] = await Bom.create(
           [
             {
               organizationId,
-              bomNumber: `BOM-${sequence}`,
-              workOrderNumber: `WO-${sequence}`,
+              bomNumber: bomSequence.number,
+              workOrderNumber: bomSequence.number.replace('-BOM-', '-WO-'),
               quoteId: quote._id,
               quoteRevision: quote.revision,
               items: bomItems,
               workflow,
               qualityChecklist,
               calculationVersion: 2,
-              branchId: request.auth!.activeBranchId,
+              branchId: bomSequence.branchId,
         createdBy: request.auth!.userId,
               updatedBy: request.auth!.userId,
             },
@@ -294,12 +290,12 @@ operationsRouter.post(
           });
         return;
       }
-      const count = await Payment.countDocuments({ organizationId });
+      const sequence = await nextBranchNumber(request.auth!, 'receipt', 'REC');
       const data = await Payment.create({
         ...input,
         organizationId,
-        receiptNumber: `REC-${String(count + 1).padStart(5, "0")}`,
-        branchId: request.auth!.activeBranchId,
+        receiptNumber: sequence.number,
+        branchId: sequence.branchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -362,7 +358,7 @@ operationsRouter.patch(
       ];
       const bom = await Bom.findOne({
         _id: request.params.id,
-        organizationId: request.auth!.organizationId,
+        ...tenantFilter(request.auth!),
       });
       if (!bom) {
         response.status(404).json({ error: { message: "BOM not found" } });
@@ -414,7 +410,7 @@ operationsRouter.patch(
       const completed = z.boolean().parse(request.body.completed);
       const bom = await Bom.findOne({
         _id: request.params.id,
-        organizationId: request.auth!.organizationId,
+        ...tenantFilter(request.auth!),
       });
       const index = Number(request.params.index);
       if (!bom || !Number.isInteger(index) || !bom.qualityChecklist[index]) {
@@ -500,7 +496,7 @@ operationsRouter.post(
           sum + (p.paymentType === "refund" ? -p.amountPaise : p.amountPaise),
         0,
       );
-      const invoiceCount = await Invoice.countDocuments({ organizationId });
+      const sequence = await nextBranchNumber(request.auth!, 'invoice', 'INV', 5, true);
       const taxHalf = Math.round(snapshot.taxPaise / 2);
       const lineItems = quote.items.map((item) => ({
         ...item,
@@ -508,7 +504,7 @@ operationsRouter.post(
       }));
       const data = await Invoice.create({
         organizationId,
-        invoiceNumber: `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(5, "0")}`,
+        invoiceNumber: sequence.number,
         quoteId,
         clientSnapshot: client,
         lineItems,
@@ -527,7 +523,7 @@ operationsRouter.post(
         balancePaise: snapshot.totalPaise - paidPaise,
         status: "draft",
         dueAt: new Date(Date.now() + 15 * 86_400_000),
-        branchId: request.auth!.activeBranchId,
+        branchId: sequence.branchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -571,9 +567,7 @@ operationsRouter.patch(
 operationsRouter.get("/credit-notes", async (request, response, next) => {
   try {
     response.json({
-      data: await CreditNote.find({
-        organizationId: request.auth!.organizationId,
-      })
+      data: await CreditNote.find({ ...tenantFilter(request.auth!) })
         .populate("invoiceId", "invoiceNumber")
         .sort({ issuedAt: -1 })
         .lean(),
@@ -612,13 +606,13 @@ operationsRouter.post(
           .json({ error: { message: "Credit exceeds invoice total" } });
         return;
       }
-      const count = await CreditNote.countDocuments({ organizationId });
+      const sequence = await nextBranchNumber(request.auth!, 'credit-note', 'CN', 5, true);
       const data = await CreditNote.create({
         ...input,
         organizationId,
         quoteId: invoice.quoteId,
-        creditNoteNumber: `CN-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`,
-        branchId: request.auth!.activeBranchId,
+        creditNoteNumber: sequence.number,
+        branchId: sequence.branchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -641,10 +635,7 @@ operationsRouter.post(
 operationsRouter.get("/suppliers", async (request, response, next) => {
   try {
     response.json({
-      data: await Supplier.find({
-        organizationId: request.auth!.organizationId,
-        isActive: true,
-      })
+      data: await Supplier.find({ ...tenantFilter(request.auth!), isActive: true })
         .sort({ name: 1 })
         .lean(),
     });
@@ -666,14 +657,12 @@ operationsRouter.post(
           address: z.string().optional(),
         })
         .parse(request.body);
-      const count = await Supplier.countDocuments({
-        organizationId: request.auth!.organizationId,
-      });
+      const sequence = await nextBranchNumber(request.auth!, 'supplier', 'SUP', 4);
       const data = await Supplier.create({
         ...input,
-        supplierCode: `SUP-${String(count + 1).padStart(4, "0")}`,
+        supplierCode: sequence.number,
         organizationId: request.auth!.organizationId,
-        branchId: request.auth!.activeBranchId,
+        branchId: sequence.branchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -686,9 +675,7 @@ operationsRouter.post(
 operationsRouter.get("/purchase-orders", async (request, response, next) => {
   try {
     response.json({
-      data: await PurchaseOrder.find({
-        organizationId: request.auth!.organizationId,
-      })
+      data: await PurchaseOrder.find({ ...tenantFilter(request.auth!) })
         .populate("supplierId", "name")
         .populate("projectId", "name")
         .sort({ createdAt: -1 })
@@ -741,16 +728,16 @@ operationsRouter.post(
         };
       });
       const totalPaise = items.reduce((sum, item) => sum + item.totalPaise, 0);
-      const count = await PurchaseOrder.countDocuments({ organizationId });
+      const sequence = await nextBranchNumber(request.auth!, 'purchase-order', 'PO');
       const data = await PurchaseOrder.create({
         organizationId,
-        poNumber: `PO-${String(count + 1).padStart(5, "0")}`,
+        poNumber: sequence.number,
         supplierId: input.supplierId,
         projectId: input.projectId || undefined,
         expectedAt: input.expectedAt,
         items,
         totalPaise,
-        branchId: request.auth!.activeBranchId,
+        branchId: sequence.branchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -814,9 +801,11 @@ operationsRouter.post(
           reorderLevel: z.number().min(0).default(0),
         })
         .parse(request.body);
+      const branchId = await resolveWriteBranch(request.auth!);
       const data = await StockItem.findOneAndUpdate(
         {
           organizationId: request.auth!.organizationId,
+          branchId,
           catalogItemId: input.catalogItemId,
           warehouse: input.warehouse,
         },
@@ -826,7 +815,7 @@ operationsRouter.post(
             reorderLevel: input.reorderLevel,
             updatedBy: request.auth!.userId,
           },
-          $setOnInsert: { branchId: request.auth!.activeBranchId,
+          $setOnInsert: { branchId,
         createdBy: request.auth!.userId },
         },
         { upsert: true, new: true },
@@ -840,9 +829,7 @@ operationsRouter.post(
 operationsRouter.get("/goods-receipts", async (request, response, next) => {
   try {
     response.json({
-      data: await GoodsReceipt.find({
-        organizationId: request.auth!.organizationId,
-      })
+      data: await GoodsReceipt.find({ ...tenantFilter(request.auth!) })
         .populate("purchaseOrderId", "poNumber")
         .sort({ receivedAt: -1 })
         .lean(),
@@ -1046,8 +1033,10 @@ operationsRouter.post(
         })
         .parse(request.body);
       const organizationId = request.auth!.organizationId;
+      const branchId = await resolveWriteBranch(request.auth!);
       const stock = await StockItem.findOne({
         organizationId,
+        branchId,
         catalogItemId: input.catalogItemId,
         warehouse: input.warehouse,
       });
@@ -1062,7 +1051,7 @@ operationsRouter.post(
         movementNumber: `MOV-${String(count + 1).padStart(6, "0")}`,
         type: "allocation",
         fromWarehouse: input.warehouse,
-        branchId: request.auth!.activeBranchId,
+        branchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -1076,9 +1065,7 @@ operationsRouter.post(
 operationsRouter.get("/deliveries", async (request, response, next) => {
   try {
     response.json({
-      data: await Delivery.find({
-        organizationId: request.auth!.organizationId,
-      })
+      data: await Delivery.find({ ...tenantFilter(request.auth!) })
         .populate("projectId", "name projectNumber")
         .sort({ scheduledAt: 1 })
         .lean(),
@@ -1101,15 +1088,13 @@ operationsRouter.post(
           notes: z.string().optional(),
         })
         .parse(request.body);
-      const count = await Delivery.countDocuments({
-        organizationId: request.auth!.organizationId,
-      });
+      const sequence = await nextBranchNumber(request.auth!, 'delivery', 'DEL');
       const data = await Delivery.create({
         ...input,
-        deliveryNumber: `DEL-${String(count + 1).padStart(5, "0")}`,
+        deliveryNumber: sequence.number,
         packingChecklist: ["Frames labelled", "Glass protected", "Hardware packed", "Documents included"].map((label) => ({ label, completed: false })),
         organizationId: request.auth!.organizationId,
-        branchId: request.auth!.activeBranchId,
+        branchId: sequence.branchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -1119,14 +1104,12 @@ operationsRouter.post(
     }
   },
 );
-operationsRouter.patch("/deliveries/:id/status", requirePermission("delivery.create"), async (request, response, next) => { try { const status = z.enum(["planned", "packed", "dispatched", "delivered"]).parse(request.body.status); const order = ["planned", "packed", "dispatched", "delivered"]; const delivery = await Delivery.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); if (!delivery) { response.status(404).json({ error: { message: "Delivery not found" } }); return; } if (order.indexOf(status) > order.indexOf(delivery.status) + 1) { response.status(409).json({ error: { message: "Complete delivery stages in order" } }); return; } if (status === "packed" && delivery.packingChecklist.some((entry) => !entry.completed)) { response.status(409).json({ error: { message: "Complete the packing checklist first" } }); return; } delivery.status = status; if (status === "dispatched") delivery.dispatchedAt = new Date(); if (status === "delivered") delivery.deliveredAt = new Date(); await delivery.save(); response.json({ data: delivery }); } catch (e) { next(e); } });
-operationsRouter.patch("/deliveries/:id/checklist/:index", requirePermission("delivery.create"), async (request, response, next) => { try { const delivery = await Delivery.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); const index = Number(request.params.index); if (!delivery || !delivery.packingChecklist[index]) { response.status(404).json({ error: { message: "Checklist item not found" } }); return; } delivery.packingChecklist[index]!.completed = z.boolean().parse(request.body.completed); await delivery.save(); response.json({ data: delivery }); } catch (e) { next(e); } });
+operationsRouter.patch("/deliveries/:id/status", requirePermission("delivery.create"), async (request, response, next) => { try { const status = z.enum(["planned", "packed", "dispatched", "delivered"]).parse(request.body.status); const order = ["planned", "packed", "dispatched", "delivered"]; const delivery = await Delivery.findOne({ _id: request.params.id, ...tenantFilter(request.auth!) }); if (!delivery) { response.status(404).json({ error: { message: "Delivery not found" } }); return; } if (order.indexOf(status) > order.indexOf(delivery.status) + 1) { response.status(409).json({ error: { message: "Complete delivery stages in order" } }); return; } if (status === "packed" && delivery.packingChecklist.some((entry) => !entry.completed)) { response.status(409).json({ error: { message: "Complete the packing checklist first" } }); return; } delivery.status = status; if (status === "dispatched") delivery.dispatchedAt = new Date(); if (status === "delivered") delivery.deliveredAt = new Date(); await delivery.save(); response.json({ data: delivery }); } catch (e) { next(e); } });
+operationsRouter.patch("/deliveries/:id/checklist/:index", requirePermission("delivery.create"), async (request, response, next) => { try { const delivery = await Delivery.findOne({ _id: request.params.id, ...tenantFilter(request.auth!) }); const index = Number(request.params.index); if (!delivery || !delivery.packingChecklist[index]) { response.status(404).json({ error: { message: "Checklist item not found" } }); return; } delivery.packingChecklist[index]!.completed = z.boolean().parse(request.body.completed); await delivery.save(); response.json({ data: delivery }); } catch (e) { next(e); } });
 operationsRouter.get("/installations", async (request, response, next) => {
   try {
     response.json({
-      data: await Installation.find({
-        organizationId: request.auth!.organizationId,
-      })
+      data: await Installation.find({ ...tenantFilter(request.auth!) })
         .populate("projectId", "name projectNumber")
         .sort({ scheduledAt: 1 })
         .lean(),
@@ -1148,12 +1131,10 @@ operationsRouter.post(
           notes: z.string().optional(),
         })
         .parse(request.body);
-      const count = await Installation.countDocuments({
-        organizationId: request.auth!.organizationId,
-      });
+      const sequence = await nextBranchNumber(request.auth!, 'installation', 'INS');
       const data = await Installation.create({
         ...input,
-        installationNumber: `INS-${String(count + 1).padStart(5, "0")}`,
+        installationNumber: sequence.number,
         checklist: [
           { label: "Site ready", completed: false },
           { label: "Items verified", completed: false },
@@ -1163,7 +1144,7 @@ operationsRouter.post(
           { label: "Customer sign-off", completed: false },
         ],
         organizationId: request.auth!.organizationId,
-        branchId: request.auth!.activeBranchId,
+        branchId: sequence.branchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -1173,9 +1154,9 @@ operationsRouter.post(
     }
   },
 );
-operationsRouter.patch("/installations/:id/status", requirePermission("installation.create"), async (request, response, next) => { try { const status = z.enum(["planned", "in_progress", "snag", "completed"]).parse(request.body.status); const installation = await Installation.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); if (!installation) { response.status(404).json({ error: { message: "Installation not found" } }); return; } if (status === "completed" && (installation.checklist.some((entry) => !entry.completed) || !installation.customerSignature)) { response.status(409).json({ error: { message: "Complete the checklist and customer sign-off first" } }); return; } installation.status = status; if (status === "completed") installation.completedAt = new Date(); await installation.save(); response.json({ data: installation }); } catch (e) { next(e); } });
-operationsRouter.patch("/installations/:id/checklist/:index", requirePermission("installation.create"), async (request, response, next) => { try { const installation = await Installation.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); const index = Number(request.params.index); if (!installation || !installation.checklist[index]) { response.status(404).json({ error: { message: "Checklist item not found" } }); return; } installation.checklist[index]!.completed = z.boolean().parse(request.body.completed); installation.checklist[index]!.notes = typeof request.body.notes === "string" ? request.body.notes.slice(0, 500) : undefined; await installation.save(); response.json({ data: installation }); } catch (e) { next(e); } });
-operationsRouter.post("/installations/:id/snags", requirePermission("installation.create"), async (request, response, next) => { try { const description = z.string().trim().min(3).max(500).parse(request.body.description); const data = await Installation.findOneAndUpdate({ _id: request.params.id, organizationId: request.auth!.organizationId }, { $push: { snagItems: { description, resolved: false } }, $set: { status: "snag", updatedBy: request.auth!.userId } }, { new: true }); response.status(201).json({ data }); } catch (e) { next(e); } });
+operationsRouter.patch("/installations/:id/status", requirePermission("installation.create"), async (request, response, next) => { try { const status = z.enum(["planned", "in_progress", "snag", "completed"]).parse(request.body.status); const installation = await Installation.findOne({ _id: request.params.id, ...tenantFilter(request.auth!) }); if (!installation) { response.status(404).json({ error: { message: "Installation not found" } }); return; } if (status === "completed" && (installation.checklist.some((entry) => !entry.completed) || !installation.customerSignature)) { response.status(409).json({ error: { message: "Complete the checklist and customer sign-off first" } }); return; } installation.status = status; if (status === "completed") installation.completedAt = new Date(); await installation.save(); response.json({ data: installation }); } catch (e) { next(e); } });
+operationsRouter.patch("/installations/:id/checklist/:index", requirePermission("installation.create"), async (request, response, next) => { try { const installation = await Installation.findOne({ _id: request.params.id, ...tenantFilter(request.auth!) }); const index = Number(request.params.index); if (!installation || !installation.checklist[index]) { response.status(404).json({ error: { message: "Checklist item not found" } }); return; } installation.checklist[index]!.completed = z.boolean().parse(request.body.completed); installation.checklist[index]!.notes = typeof request.body.notes === "string" ? request.body.notes.slice(0, 500) : undefined; await installation.save(); response.json({ data: installation }); } catch (e) { next(e); } });
+operationsRouter.post("/installations/:id/snags", requirePermission("installation.create"), async (request, response, next) => { try { const description = z.string().trim().min(3).max(500).parse(request.body.description); const data = await Installation.findOneAndUpdate({ _id: request.params.id, ...tenantFilter(request.auth!) }, { $push: { snagItems: { description, resolved: false } }, $set: { status: "snag", updatedBy: request.auth!.userId } }, { new: true }); response.status(201).json({ data }); } catch (e) { next(e); } });
 operationsRouter.post("/installations/:id/sign-off", requirePermission("installation.create"), async (request, response, next) => { try { const input = z.object({ customerSignatory: z.string().trim().min(2), signature: z.string().min(2).max(20_000) }).parse(request.body); const organizationId = request.auth!.organizationId; const installation = await Installation.findOne({ _id: request.params.id, organizationId }); if (!installation) { response.status(404).json({ error: { message: "Installation not found" } }); return; } installation.customerSignatory = input.customerSignatory; installation.customerSignature = input.signature; installation.signedAt = new Date(); const signoff = installation.checklist.find((entry) => entry.label === "Customer sign-off"); if (signoff) signoff.completed = true; await installation.save(); const count = await CompletionCertificate.countDocuments({ organizationId }); const certificate = await CompletionCertificate.create({ organizationId, certificateNumber: `CC-${String(count + 1).padStart(5, "0")}`, installationId: installation._id, projectId: installation.projectId, customerSignatory: input.customerSignatory, completedAt: new Date(), statement: "Installation work inspected and accepted by the customer.", branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId, updatedBy: request.auth!.userId }); response.status(201).json({ data: { installation, certificate } }); } catch (e) { next(e); } });
 operationsRouter.get("/completion-certificates", async (request, response, next) => { try { response.json({ data: await CompletionCertificate.find({ ...tenantFilter(request.auth!) }).populate("projectId", "name projectNumber").sort({ createdAt: -1 }).lean() }); } catch (e) { next(e); } });

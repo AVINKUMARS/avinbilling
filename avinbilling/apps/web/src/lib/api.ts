@@ -60,9 +60,10 @@ export async function apiRequest<T>(
   }
 
   try {
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const requestOptions: RequestInit = {
       ...options,
       method,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -70,7 +71,20 @@ export async function apiRequest<T>(
         ...(mutationId ? { "Idempotency-Key": mutationId } : {}),
         ...options.headers,
       },
-    });
+    };
+    let response = await fetch(`${apiBaseUrl}${path}`, requestOptions);
+    if (response.status === 401 && !path.startsWith("/auth/")) {
+      const refresh = await fetch(`${apiBaseUrl}/auth/refresh`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } });
+      if (refresh.ok) {
+        const refreshed = await refresh.json() as { data?: { token?: string } };
+        if (refreshed.data?.token) {
+          localStorage.setItem("avin_token", refreshed.data.token);
+          const headers = new Headers(requestOptions.headers);
+          headers.set("Authorization", `Bearer ${refreshed.data.token}`);
+          response = await fetch(`${apiBaseUrl}${path}`, { ...requestOptions, headers });
+        }
+      }
+    }
     const body = (await response.json()) as {
       data?: T;
       error?: { message?: string };

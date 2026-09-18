@@ -23,4 +23,13 @@ describe('public platform API', () => {
       pack.categories.length > 0 && pack.formulas.length > 0 && pack.defaultWorkflow.length > 0,
     )).toBe(true);
   });
+
+  it.each(['/api/v1/branches/warehouses', '/api/v1/files/attachments', '/api/v1/security/audit'])(
+    'protects sensitive route %s',
+    async (path) => {
+      const response = await request(app).get(path);
+      expect(response.status).toBe(401);
+      expect(response.body.error.code).toBe('UNAUTHENTICATED');
+    },
+  );
 });

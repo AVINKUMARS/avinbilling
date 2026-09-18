@@ -48,7 +48,12 @@ export function requirePermission(permission: string) {
   return (request: Request, _response: Response, next: NextFunction) => {
     const auth = request.auth;
     if (!auth) return next(new ApiError(401, 'Authentication required', 'UNAUTHENTICATED'));
-    if (auth.role === 'owner' || auth.role === 'admin' || auth.permissions.includes(permission)) return next();
+    const aliases: Record<string, string> = {
+      'catalog.create': 'catalog.manage', 'rates.create': 'catalog.manage', 'rates.activate': 'catalog.manage',
+      'projects.update': 'projects.create', 'production.update': 'production.manage', 'invoices.create': 'invoice.create',
+      'inventory.adjust': 'inventory.manage', 'installation.create': 'delivery.create',
+    };
+    if (auth.role === 'owner' || auth.role === 'admin' || auth.permissions.includes(permission) || auth.permissions.includes(aliases[permission] ?? '')) return next();
     return next(new ApiError(403, 'You do not have permission for this action', 'FORBIDDEN'));
   };
 }
