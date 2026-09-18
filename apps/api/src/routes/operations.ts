@@ -1518,13 +1518,83 @@ operationsRouter.get("/reports/logistics", async (request, response, next) => {
     next(e);
   }
 });
+const definitionTypeSchema = z.enum([
+  "field",
+  "form",
+  "workflow",
+  "formula",
+  "document",
+]);
+
+const customConfigurationSchemas = {
+  field: z.object({
+    entity: z.enum(["client", "project", "measurement", "quote", "invoice"]),
+    label: z.string().trim().min(2).max(100),
+    fieldType: z.enum(["text", "number", "date", "select", "checkbox", "textarea"]),
+    required: z.boolean().default(false),
+    placeholder: z.string().max(150).optional(),
+    options: z.array(z.string().trim().min(1).max(100)).max(50).default([]),
+    defaultValue: z.union([z.string(), z.number(), z.boolean()]).optional(),
+  }),
+  form: z.object({
+    entity: z.enum(["client", "project", "measurement", "quote", "invoice"]),
+    description: z.string().max(300).optional(),
+    columns: z.number().int().min(1).max(3).default(1),
+    fields: z.array(z.object({
+      key: z.string().regex(/^[a-z][a-z0-9_-]*$/),
+      label: z.string().min(2),
+      fieldType: z.enum(["text", "number", "date", "select", "checkbox", "textarea"]),
+      required: z.boolean().default(false),
+    })).min(1).max(50),
+  }),
+  workflow: z.object({
+    entity: z.enum(["project", "quote", "purchase", "production", "delivery", "installation", "service"]),
+    stages: z.array(z.object({
+      key: z.string().regex(/^[a-z][a-z0-9_-]*$/),
+      label: z.string().min(2),
+      color: z.string().regex(/^#[0-9a-f]{6}$/i).default("#0f766e"),
+      requiresApproval: z.boolean().default(false),
+    })).min(2).max(30),
+  }),
+  formula: z.object({
+    entity: z.enum(["measurement", "quote", "invoice", "project"]),
+    expression: z.string().trim().min(1).max(500).regex(/^[0-9a-zA-Z_+\-*/().,%\s]+$/, "Formula contains unsupported characters"),
+    variables: z.array(z.string().regex(/^[a-z][a-zA-Z0-9_]*$/)).max(30),
+    resultUnit: z.string().trim().max(20).default("number"),
+    decimalPlaces: z.number().int().min(0).max(4).default(2),
+  }),
+  document: z.object({
+    documentType: z.enum(["quotation", "invoice", "delivery-note", "work-order", "completion-certificate"]),
+    title: z.string().trim().min(2).max(100),
+    blocks: z.array(z.enum(["company", "customer", "project", "items", "tax", "terms", "signature", "payment", "notes"])).min(1),
+    accentColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+    footer: z.string().max(300).optional(),
+    showLogo: z.boolean().default(true),
+  }),
+} as const;
+
+function parseCustomConfiguration(
+  definitionType: z.infer<typeof definitionTypeSchema>,
+  configuration: unknown,
+) {
+  return customConfigurationSchemas[definitionType].parse(configuration);
+}
+
 operationsRouter.get("/custom-definitions", async (request, response, next) => {
   try {
+    const definitionType = request.query.type
+      ? definitionTypeSchema.parse(request.query.type)
+      : undefined;
+    const status = request.query.status
+      ? z.enum(["draft", "active", "archived"]).parse(request.query.status)
+      : undefined;
     response.json({
       data: await CustomDefinition.find({
         organizationId: request.auth!.organizationId,
+        ...(definitionType ? { definitionType } : {}),
+        ...(status ? { status } : {}),
       })
-        .sort({ definitionType: 1, name: 1 })
+        .sort({ updatedAt: -1, version: -1 })
         .lean(),
     });
   } catch (e) {
@@ -1538,18 +1608,16 @@ operationsRouter.post(
     try {
       const input = z
         .object({
-          definitionType: z.enum([
-            "field",
-            "form",
-            "workflow",
-            "formula",
-            "document",
-          ]),
-          key: z.string().min(2),
-          name: z.string().min(2),
+          definitionType: definitionTypeSchema,
+          key: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_-]*$/).min(2).max(80),
+          name: z.string().trim().min(2).max(120),
           configuration: z.unknown(),
         })
         .parse(request.body);
+      const configuration = parseCustomConfiguration(
+        input.definitionType,
+        input.configuration,
+      );
       const previous = await CustomDefinition.findOne({
         organizationId: request.auth!.organizationId,
         definitionType: input.definitionType,
@@ -1559,6 +1627,7 @@ operationsRouter.post(
         .lean();
       const data = await CustomDefinition.create({
         ...input,
+        configuration,
         version: (previous?.version ?? 0) + 1,
         organizationId: request.auth!.organizationId,
         createdBy: request.auth!.userId,
@@ -1567,6 +1636,138 @@ operationsRouter.post(
       response.status(201).json({ data });
     } catch (e) {
       next(e);
+    }
+  },
+);
+
+operationsRouter.patch(
+  "/custom-definitions/:id",
+  requirePermission("settings.customize"),
+  async (request, response, next) => {
+    try {
+      const definition = await CustomDefinition.findOne({
+        _id: request.params.id,
+        organizationId: request.auth!.organizationId,
+      });
+      if (!definition) {
+        response.status(404).json({ error: { message: "Custom definition not found" } });
+        return;
+      }
+      if (definition.status !== "draft") {
+        response.status(409).json({ error: { message: "Only draft definitions can be edited. Create a new version instead." } });
+        return;
+      }
+      const input = z.object({
+        name: z.string().trim().min(2).max(120),
+        configuration: z.unknown(),
+      }).parse(request.body);
+      definition.name = input.name;
+      definition.configuration = parseCustomConfiguration(
+        definition.definitionType as z.infer<typeof definitionTypeSchema>,
+        input.configuration,
+      );
+      definition.updatedBy = request.auth!.userId;
+      await definition.save();
+      response.json({ data: definition });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+operationsRouter.post(
+  "/custom-definitions/:id/duplicate",
+  requirePermission("settings.customize"),
+  async (request, response, next) => {
+    try {
+      const source = await CustomDefinition.findOne({
+        _id: request.params.id,
+        organizationId: request.auth!.organizationId,
+      }).lean();
+      if (!source) {
+        response.status(404).json({ error: { message: "Custom definition not found" } });
+        return;
+      }
+      const latest = await CustomDefinition.findOne({
+        organizationId: request.auth!.organizationId,
+        definitionType: source.definitionType,
+        key: source.key,
+      }).sort({ version: -1 }).lean();
+      const data = await CustomDefinition.create({
+        organizationId: request.auth!.organizationId,
+        definitionType: source.definitionType,
+        key: source.key,
+        name: source.name,
+        version: (latest?.version ?? 0) + 1,
+        status: "draft",
+        configuration: source.configuration,
+        createdBy: request.auth!.userId,
+        updatedBy: request.auth!.userId,
+      });
+      response.status(201).json({ data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+operationsRouter.post(
+  "/custom-definitions/:id/activate",
+  requirePermission("settings.customize"),
+  async (request, response, next) => {
+    try {
+      const definition = await CustomDefinition.findOne({
+        _id: request.params.id,
+        organizationId: request.auth!.organizationId,
+      });
+      if (!definition) {
+        response.status(404).json({ error: { message: "Custom definition not found" } });
+        return;
+      }
+      parseCustomConfiguration(
+        definition.definitionType as z.infer<typeof definitionTypeSchema>,
+        definition.configuration,
+      );
+      await CustomDefinition.updateMany(
+        {
+          organizationId: request.auth!.organizationId,
+          definitionType: definition.definitionType,
+          key: definition.key,
+          status: "active",
+          _id: { $ne: definition._id },
+        },
+        { $set: { status: "archived", updatedBy: request.auth!.userId } },
+      );
+      definition.status = "active";
+      definition.updatedBy = request.auth!.userId;
+      await definition.save();
+      response.json({ data: definition });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+operationsRouter.post(
+  "/custom-definitions/:id/archive",
+  requirePermission("settings.customize"),
+  async (request, response, next) => {
+    try {
+      const data = await CustomDefinition.findOneAndUpdate(
+        {
+          _id: request.params.id,
+          organizationId: request.auth!.organizationId,
+        },
+        { $set: { status: "archived", updatedBy: request.auth!.userId } },
+        { new: true },
+      );
+      if (!data) {
+        response.status(404).json({ error: { message: "Custom definition not found" } });
+        return;
+      }
+      response.json({ data });
+    } catch (error) {
+      next(error);
     }
   },
 );

@@ -32,6 +32,7 @@ import { apiRequest } from "../lib/api";
 import type { QuotePdfData } from "./QuotePdf";
 import type { InvoicePdfData } from "./InvoicePdf";
 import { ConnectivityBadge } from "./ConnectivityBadge";
+import { CustomBuilders } from "./CustomBuilders";
 
 type User = { id: string; name: string; email: string };
 type Page =
@@ -3492,7 +3493,7 @@ function OperationsPanel({
   async function toggleInstallation(id: unknown, index: number, completed: boolean) { try { await apiRequest(`/operations/installations/${id}/checklist/${index}`, { method: "PATCH", body: JSON.stringify({ completed }) }); await loadOps(); } catch (e) { setError(e instanceof Error ? e.message : "Unable to update checklist"); } }
   async function addSnag(id: unknown) { const description = window.prompt("Describe the snag or pending work"); if (!description) return; try { await apiRequest(`/operations/installations/${id}/snags`, { method: "POST", body: JSON.stringify({ description }) }); await loadOps(); } catch (e) { setError(e instanceof Error ? e.message : "Unable to add snag"); } }
   async function signOff(id: unknown) { const customerSignatory = window.prompt("Customer signatory name"); if (!customerSignatory) return; const signature = window.prompt("Type customer name again as digital acknowledgement", customerSignatory); if (!signature) return; try { await apiRequest(`/operations/installations/${id}/sign-off`, { method: "POST", body: JSON.stringify({ customerSignatory, signature }) }); await loadOps(); } catch (e) { setError(e instanceof Error ? e.message : "Unable to sign off"); } }
-  const canQuickAdd = kind === "customize";
+  if (kind === "customize") return <CustomBuilders />;
   if (kind === "reports") {
     const report = data.overview as Record<string, number> | undefined;
     const gst = data.gst as Record<string, number> | undefined;
@@ -4087,100 +4088,5 @@ function OperationsPanel({
       </div>
     );
   if (kind === "logistics") return <div className="mt-7 space-y-5">{error && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}<button onClick={() => void quickAdd()} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white">Schedule delivery / installation</button><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"><h2 className="font-black text-ink">Deliveries</h2><div className="mt-3 space-y-4">{list("deliveries").map((delivery) => { const checks = Array.isArray(delivery.packingChecklist) ? delivery.packingChecklist as Array<Record<string, unknown>> : []; return <article key={String(delivery._id)} className="rounded-xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><div><b>{String(delivery.deliveryNumber)}</b><div className="text-xs text-slate-500">{String(delivery.status)} · {String(delivery.vehicle ?? "Vehicle not assigned")} · {String(delivery.driver ?? "Driver not assigned")}</div></div>{delivery.status !== "delivered" && <button onClick={() => void advanceDelivery(delivery)} className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-bold text-white">Next stage</button>}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{checks.map((check, index) => <label key={index} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs"><input type="checkbox" checked={Boolean(check.completed)} onChange={(event) => void togglePacking(delivery._id, index, event.target.checked)} />{String(check.label)}</label>)}</div></article>; })}</div></section><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"><div className="flex items-center justify-between"><h2 className="font-black text-ink">Installations</h2><span className="text-xs font-bold text-slate-500">{list("certificates").length} certificates</span></div><div className="mt-3 space-y-4">{list("installations").map((installation) => { const checks = Array.isArray(installation.checklist) ? installation.checklist as Array<Record<string, unknown>> : []; const snags = Array.isArray(installation.snagItems) ? installation.snagItems as Array<Record<string, unknown>> : []; return <article key={String(installation._id)} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><b>{String(installation.installationNumber)}</b><div className="text-xs text-slate-500">{String(installation.status)} · team {String(installation.assignedTeam)}</div></div><div className="flex flex-wrap gap-2"><button onClick={() => void addSnag(installation._id)} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-700">Add snag</button>{!installation.customerSignature && <button onClick={() => void signOff(installation._id)} className="rounded-lg border border-brand-600 px-3 py-2 text-xs font-bold text-brand-700">Customer sign-off</button>}{installation.status !== "completed" && <button onClick={() => void advanceInstallation(installation)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white">Next stage</button>}</div></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{checks.map((check, index) => <label key={index} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs"><input type="checkbox" checked={Boolean(check.completed)} onChange={(event) => void toggleInstallation(installation._id, index, event.target.checked)} />{String(check.label)}</label>)}</div>{snags.length > 0 && <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{snags.length} snag item(s) recorded</div>}</article>; })}</div></section></div>;
-  const sections: Record<
-    Exclude<OpsKind, "reports">,
-    Array<[string, string]>
-  > = {
-    purchasing: [
-      ["suppliers", "Suppliers"],
-      ["purchaseOrders", "Purchase orders"],
-      ["inventory", "Inventory"],
-    ],
-    production: [["boms", "Bills of materials"]],
-    finance: [
-      ["payments", "Payments"],
-      ["invoices", "GST invoices"],
-    ],
-    logistics: [
-      ["deliveries", "Deliveries"],
-      ["installations", "Installations"],
-    ],
-    customize: [["definitions", "Custom definitions"]],
-  };
-  return (
-    <div className="mt-7 space-y-5">
-      {error && (
-        <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-          {error}
-        </div>
-      )}
-      {canQuickAdd && (
-        <button
-          onClick={() => void quickAdd()}
-          className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
-        >
-          <Plus className="mr-2 inline" size={16} />
-          Add custom field
-        </button>
-      )}
-      {sections[kind].map(([key, title]) => (
-        <section
-          key={key}
-          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-black text-ink">{title}</h2>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-              {list(key).length}
-            </span>
-          </div>
-          {list(key).length ? (
-            <div className="mt-4 divide-y divide-slate-100">
-              {list(key)
-                .slice(0, 20)
-                .map((record, index) => (
-                  <div
-                    key={String(record._id ?? index)}
-                    className="flex items-center justify-between gap-4 py-3 text-sm"
-                  >
-                    <div>
-                      <div className="font-bold text-ink">
-                        {String(
-                          record.name ??
-                            record.bomNumber ??
-                            record.invoiceNumber ??
-                            record.receiptNumber ??
-                            record.poNumber ??
-                            record.deliveryNumber ??
-                            record.installationNumber ??
-                            record.key ??
-                            "Record",
-                        )}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {String(
-                          record.status ??
-                            record.definitionType ??
-                            record.warehouse ??
-                            "",
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right text-xs text-slate-500">
-                      {record.totalPaise
-                        ? money(Number(record.totalPaise))
-                        : record.balancePaise !== undefined
-                          ? `Balance ${money(Number(record.balancePaise))}`
-                          : ""}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-slate-500">No records yet.</p>
-          )}
-        </section>
-      ))}
-    </div>
-  );
+  return null;
 }

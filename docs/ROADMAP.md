@@ -49,3 +49,10 @@
 - Custom permission and branch assignments per employee
 - Account activation, administrator password reset and self-service password change
 - Branch directory plus login and access activity history
+
+## Custom builders (implemented)
+
+- Visual custom field, form, formula, workflow and document-template editors
+- Live configuration previews and server-side schema validation
+- Draft editing, safe activation, archiving and version history
+- One active version per builder key plus portable JSON export
