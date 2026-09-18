@@ -13,7 +13,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ## Current priority
 
-**In progress:** Branch Data Isolation
+**In progress:** Branch Data Isolation. Packages 20–23 remain queued after it.
 
 ## Package summary
 
@@ -35,9 +35,9 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 14 | Additional Industry Packs | Completed | Eight configurable packs with installers, examples, formulas and workflows |
 | 15 | Runtime Customization Integration | Completed | Active fields, forms, formulas, workflows, document templates and JSON import |
 | 16 | Advanced Project Costing | Completed | Complete estimated-versus-actual job costing |
-| 17 | Branch Data Isolation | Pending | Active branch selector and branch-restricted business records |
-| 18 | Service and Warranty | Pending | Complaints, service jobs, warranty and technician visits |
-| 19 | CRM Leads and Follow-ups | Pending | Lead pipeline, reminders, notes and conversion tracking |
+| 17 | Branch Data Isolation | In progress | Core filtering is present; transfers, branch numbering/warehouses and full mutation audit remain |
+| 18 | Service and Warranty | Completed | Complaints, service jobs, warranty and technician visits |
+| 19 | CRM Leads and Follow-ups | Completed | Lead pipeline, reminders, notes and conversion tracking |
 | 20 | Files, Photos and Notifications | Pending | Attachments, site photos, WhatsApp/email and reminders |
 | 21 | Advanced Audit and Security | Pending | Complete security hardening and immutable audit coverage |
 | 22 | Production Deployment | Pending | Hosted application, production database, domain, SSL and backups |
@@ -202,7 +202,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Gross and net project profit
 - [x] Cost approval controls
 
-### [x] 17. Branch Data Isolation
+### [~] 17. Branch Data Isolation
 
 - [x] Active branch selector
 - [x] Save branch ID on new business records
@@ -225,13 +225,13 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ### [x] 19. CRM Leads and Follow-ups
 
-- [ ] Lead capture
+- [x] Lead capture
 - [x] Sales pipeline stages
-- [ ] Follow-up reminders
+- [x] Follow-up reminders
 - [x] Customer notes and communication history
 - [x] Lost-lead reasons
 - [x] Lead-to-project conversion
-- [ ] Salesperson performance
+- [x] Salesperson performance
 
 ### [ ] 20. Files, Photos and Notifications
 

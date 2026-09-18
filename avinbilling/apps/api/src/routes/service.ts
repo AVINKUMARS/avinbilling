@@ -17,14 +17,17 @@ const warrantyInput = z.object({
   startDate: z.coerce.date(),
   expiryDate: z.coerce.date(),
   terms: z.string().max(2000).optional(),
-});
+}).refine((value) => value.expiryDate > value.startDate, { message: 'Warranty expiry must be after its start date', path: ['expiryDate'] });
 
 serviceRouter.get('/warranties', async (request, response, next) => {
   try {
-    const data = await Warranty.find(tenantFilter(request.auth!))
+    const filter = tenantFilter(request.auth!);
+    await Warranty.updateMany({ ...filter, status: 'active', expiryDate: { $lt: new Date() } }, { $set: { status: 'expired' } });
+    const warranties = await Warranty.find(filter)
       .populate('projectId', 'name projectNumber')
       .sort({ expiryDate: 1 })
       .lean();
+    const data = warranties.map((warranty) => ({ ...warranty, daysRemaining: Math.ceil((new Date(warranty.expiryDate).getTime() - Date.now()) / 86_400_000), expiringSoon: warranty.status === 'active' && new Date(warranty.expiryDate).getTime() <= Date.now() + 30 * 86_400_000 }));
     response.json({ data });
   } catch (error) { next(error); }
 });

@@ -285,6 +285,21 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
+function BranchSelector() {
+  const { activeBranchId, setActiveBranchId } = useAuthStore();
+  const [branches, setBranches] = useState<Array<{ _id: string; code: string; name: string; isActive: boolean }>>([]);
+  useEffect(() => {
+    apiRequest<Array<{ _id: string; code: string; name: string; isActive: boolean }>>("/organization/branches")
+      .then((items) => {
+        const active = items.filter((item) => item.isActive);
+        setBranches(active);
+        if (activeBranchId && !active.some((item) => item._id === activeBranchId)) setActiveBranchId(null);
+      })
+      .catch(() => setBranches([]));
+  }, [activeBranchId, setActiveBranchId]);
+  return <select aria-label="Active branch" value={activeBranchId ?? ""} onChange={(event) => setActiveBranchId(event.target.value || null)} className="max-w-52 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700"><option value="">All permitted branches</option>{branches.map((branch) => <option key={branch._id} value={branch._id}>{branch.code} — {branch.name}</option>)}</select>;
+}
+
 function Modal({
   title,
   onClose,
@@ -319,6 +334,7 @@ export function Workspace({
   user: User;
   onLogout: () => void;
 }) {
+  const activeBranchId = useAuthStore((state) => state.activeBranchId);
   const [page, setPage] = useState<Page>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [modal, setModal] = useState<
@@ -402,7 +418,7 @@ export function Workspace({
         problem instanceof Error ? problem.message : "Unable to load workspace",
       );
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => {
     void load();
@@ -654,6 +670,7 @@ export function Workspace({
             <Search size={16} /> Search workspace
           </div>
           <div className="flex items-center gap-3">
+            <BranchSelector />
             <ConnectivityBadge />
             <div className="hidden text-sm font-bold text-slate-700 sm:block">
               {user.name}
@@ -669,8 +686,7 @@ export function Workspace({
               </h1>
               <p className="mt-2 text-slate-600">{titles[page][1]}</p>
             </div>
-            {page === "crm" && <CrmDashboard />}
-          {page === "customers" && (
+            {page === "customers" && (
               <button
                 onClick={() => setModal("customer")}
                 className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white"
@@ -739,6 +755,7 @@ export function Workspace({
           {page === "dashboard" && (
             <Dashboard summary={summary} setPage={setPage} />
           )}
+          {page === "crm" && <CrmDashboard />}
           {page === "customers" && (
             <Table
               headers={["Code", "Customer", "Phone", "Site"]}

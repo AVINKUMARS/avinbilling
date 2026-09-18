@@ -4,6 +4,7 @@ import { requireAuth, requirePermission, tenantFilter } from '../middleware/auth
 import { Lead, FollowUp } from '../models/crm.js';
 import { Client } from '../models/client.js';
 import { Project } from '../models/project.js';
+import { User } from '../models/user.js';
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 
@@ -149,5 +150,44 @@ crmRouter.post('/leads/:id/follow-ups', requirePermission('clients.create'), asy
       createdBy: request.auth!.userId,
     });
     response.status(201).json({ data });
+  } catch (error) { next(error); }
+});
+
+crmRouter.get('/reminders', async (request, response, next) => {
+  try {
+    const data = await FollowUp.find({
+      ...tenantFilter(request.auth!),
+      completed: false,
+      nextReminderAt: { $ne: null },
+    })
+      .populate('leadId', 'leadNumber name phone assignedTo')
+      .sort({ nextReminderAt: 1 })
+      .limit(100)
+      .lean();
+    response.json({ data });
+  } catch (error) { next(error); }
+});
+
+crmRouter.patch('/follow-ups/:id/complete', requirePermission('clients.create'), async (request, response, next) => {
+  try {
+    const data = await FollowUp.findOneAndUpdate(
+      { _id: objectId.parse(request.params.id), ...tenantFilter(request.auth!) },
+      { $set: { completed: true, updatedBy: request.auth!.userId } },
+      { new: true },
+    );
+    if (!data) { response.status(404).json({ error: { message: 'Follow-up not found' } }); return; }
+    response.json({ data });
+  } catch (error) { next(error); }
+});
+
+crmRouter.get('/performance', requirePermission('reports.view'), async (request, response, next) => {
+  try {
+    const rows = await Lead.aggregate([
+      { $match: tenantFilter(request.auth!) },
+      { $group: { _id: '$assignedTo', leads: { $sum: 1 }, won: { $sum: { $cond: [{ $eq: ['$stage', 'won'] }, 1, 0] } }, lost: { $sum: { $cond: [{ $eq: ['$stage', 'lost'] }, 1, 0] } }, pipelinePaise: { $sum: '$budget' } } },
+    ]);
+    const users = await User.find({ _id: { $in: rows.map((row) => row._id).filter(Boolean) } }).select('name').lean();
+    const names = new Map(users.map((user) => [String(user._id), user.name]));
+    response.json({ data: rows.map((row) => ({ ...row, salesperson: row._id ? names.get(String(row._id)) ?? 'Unknown' : 'Unassigned', conversionPercent: row.leads ? Math.round(row.won / row.leads * 1000) / 10 : 0 })) });
   } catch (error) { next(error); }
 });

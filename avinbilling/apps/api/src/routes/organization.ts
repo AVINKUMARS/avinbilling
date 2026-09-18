@@ -341,8 +341,11 @@ organizationRouter.get('/access/options', (_request, response) => {
 
 organizationRouter.get('/branches', async (request, response, next) => {
   try {
+    const filter = request.auth!.role === 'owner' || request.auth!.role === 'admin'
+      ? { organizationId: request.auth!.organizationId }
+      : { organizationId: request.auth!.organizationId, _id: { $in: request.auth!.branchIds } };
     response.json({
-      data: await Branch.find({ organizationId: request.auth!.organizationId })
+      data: await Branch.find(filter)
         .sort({ isActive: -1, name: 1 })
         .lean(),
     });
