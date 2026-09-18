@@ -26,6 +26,7 @@ const invoiceSchema = new Schema({
   ...tenantFields, invoiceNumber: { type: String, required: true }, quoteId: { type: Schema.Types.ObjectId, ref: 'Quote', required: true, index: true }, clientSnapshot: Schema.Types.Mixed,
   lineItems: [Schema.Types.Mixed], taxMode: { type: String, enum: ['cgst_sgst', 'igst'], default: 'cgst_sgst' }, gstPercent: { type: Number, default: 18 }, placeOfSupply: String, subtotalPaise: Number, discountPaise: Number, taxablePaise: Number, cgstPaise: Number, sgstPaise: Number, igstPaise: Number, grandTotalPaise: Number, paidPaise: Number, creditedPaise: { type: Number, default: 0 }, balancePaise: Number,
   status: { type: String, enum: ['draft', 'issued', 'part_paid', 'paid', 'cancelled'], default: 'draft' }, issuedAt: Date, dueAt: Date,
+  customValues: { type: Map, of: Schema.Types.Mixed }, calculatedValues: { type: Map, of: Number },
 }, { timestamps: true });
 invoiceSchema.index({ organizationId: 1, invoiceNumber: 1 }, { unique: true });
 export const Invoice = model('Invoice', invoiceSchema);

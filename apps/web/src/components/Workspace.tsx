@@ -37,6 +37,7 @@ import {
   IndustryPackManager,
   type OrganizationIndustryPack,
 } from "./IndustryPacks";
+import { RuntimeFields, RuntimeRecordFields, extractCustomValues } from "./RuntimeFields";
 
 type User = { id: string; name: string; email: string };
 type Page =
@@ -86,6 +87,9 @@ type Project = {
   siteAddress?: string;
   clientId?: { name: string; phone: string };
   areas: ProjectArea[];
+  customValues?: Record<string, unknown>;
+  calculatedValues?: Record<string, number>;
+  customWorkflow?: { currentStageKey?: string };
 };
 type CatalogItem = {
   _id: string;
@@ -143,6 +147,8 @@ type Measurement = {
     areas: ProjectArea[];
   };
   areaLocalId?: string;
+  customValues?: Record<string, unknown>;
+  calculatedValues?: Record<string, number>;
 };
 type Summary = {
   customers: number;
@@ -224,17 +230,19 @@ const navItems: Array<{ key: Page; label: string; icon: typeof Gauge }> = [
 
 async function downloadQuoteDocument(quote: QuotePdfData) {
   const { downloadQuotePdf } = await import("./QuotePdf");
-  const companySettings = await apiRequest<
-    NonNullable<QuotePdfData["companySettings"]>
-  >("/organization/settings");
-  await downloadQuotePdf({ ...quote, companySettings });
+  const [companySettings, template] = await Promise.all([
+    apiRequest<NonNullable<QuotePdfData["companySettings"]>>("/organization/settings"),
+    apiRequest<{ configuration: NonNullable<QuotePdfData["documentTemplate"]> } | null>("/customization/documents/quotation"),
+  ]);
+  await downloadQuotePdf({ ...quote, companySettings, documentTemplate: template?.configuration });
 }
 async function shareQuoteDocument(quote: QuotePdfData) {
   const { shareQuotePdf } = await import("./QuotePdf");
-  const companySettings = await apiRequest<
-    NonNullable<QuotePdfData["companySettings"]>
-  >("/organization/settings");
-  const shared = await shareQuotePdf({ ...quote, companySettings });
+  const [companySettings, template] = await Promise.all([
+    apiRequest<NonNullable<QuotePdfData["companySettings"]>>("/organization/settings"),
+    apiRequest<{ configuration: NonNullable<QuotePdfData["documentTemplate"]> } | null>("/customization/documents/quotation"),
+  ]);
+  const shared = await shareQuotePdf({ ...quote, companySettings, documentTemplate: template?.configuration });
   if (!shared)
     throw new Error(
       "File sharing is not supported on this device. Use Download PDF and attach it in WhatsApp.",
@@ -397,10 +405,16 @@ export function Workspace({
   async function createCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await apiRequest("/clients", {
+    const created = await apiRequest<{ _id: string }>("/clients", {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(data)),
     });
+    const values = extractCustomValues(event.currentTarget);
+    if (Object.keys(values).length)
+      await apiRequest(`/customization/values/client/${created._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ values }),
+      });
     setModal(null);
     await load();
   }
@@ -423,10 +437,16 @@ export function Workspace({
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await apiRequest("/projects", {
+    const created = await apiRequest<{ _id: string }>("/projects", {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(data)),
     });
+    const values = extractCustomValues(event.currentTarget);
+    if (Object.keys(values).length)
+      await apiRequest(`/customization/values/project/${created._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ values }),
+      });
     setModal(null);
     await load();
   }
@@ -485,7 +505,7 @@ export function Workspace({
     const data = new FormData(event.currentTarget);
     const unit = String(data.get("inputUnit"));
     const factor = unit === "inch" ? 25.4 : unit === "ft" ? 304.8 : 1;
-    await apiRequest("/measurements", {
+    const created = await apiRequest<{ _id: string }>("/measurements", {
       method: "POST",
       body: JSON.stringify({
         projectId: data.get("projectId"),
@@ -518,6 +538,12 @@ export function Workspace({
         },
       }),
     });
+    const values = extractCustomValues(event.currentTarget);
+    if (Object.keys(values).length)
+      await apiRequest(`/customization/values/measurement/${created._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ values }),
+      });
     setModal(null);
     await load();
   }
@@ -833,6 +859,7 @@ export function Workspace({
             <Field label="Site address">
               <Input name="siteAddress" />
             </Field>
+            <RuntimeFields entity="project" />
             <Submit />
           </form>
         </Modal>
@@ -968,6 +995,7 @@ export function Workspace({
             <Field label="Site address">
               <Input name="siteAddress" />
             </Field>
+            <RuntimeFields entity="client" />
             <Submit />
           </form>
         </Modal>
@@ -1268,6 +1296,7 @@ export function Workspace({
                 placeholder="Wall condition and customer request"
               />
             </Field>
+            <RuntimeFields entity="measurement" />
             <Submit />
           </form>
         </Modal>
@@ -3102,7 +3131,7 @@ function ComparisonWorkspace({
               {quotes.map((quote) => (
                 <div
                   key={`${quote.quoteNumber}-${quote.revision}`}
-                  className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-4 p-5"
                 >
                   <div>
                     <div className="font-black text-ink">
@@ -3171,6 +3200,7 @@ function ComparisonWorkspace({
                       Download PDF
                     </button>
                   </div>
+                  {quote._id && <RuntimeRecordFields entity="quote" recordId={quote._id} />}
                 </div>
               ))}
             </div>
@@ -3388,12 +3418,14 @@ function OperationsPanel({
   async function invoicePdf(invoice: Record<string, unknown>) {
     try {
       const { downloadInvoicePdf } = await import("./InvoicePdf");
-      const companySettings = await apiRequest<
-        NonNullable<InvoicePdfData["companySettings"]>
-      >("/organization/settings");
+      const [companySettings, template] = await Promise.all([
+        apiRequest<NonNullable<InvoicePdfData["companySettings"]>>("/organization/settings"),
+        apiRequest<{ configuration: NonNullable<InvoicePdfData["documentTemplate"]> } | null>("/customization/documents/invoice"),
+      ]);
       await downloadInvoicePdf({
         ...invoice,
         companySettings,
+        documentTemplate: template?.configuration,
       } as unknown as InvoicePdfData);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to create invoice PDF");
@@ -3950,7 +3982,7 @@ function OperationsPanel({
               {list("invoices").map((invoice) => (
                 <div
                   key={String(invoice._id)}
-                  className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 py-4"
                 >
                   <div>
                     <b>{String(invoice.invoiceNumber)}</b>
@@ -3985,6 +4017,7 @@ function OperationsPanel({
                       Credit note
                     </button>
                   </div>
+                  <RuntimeRecordFields entity="invoice" recordId={String(invoice._id)} />
                 </div>
               ))}
             </div>

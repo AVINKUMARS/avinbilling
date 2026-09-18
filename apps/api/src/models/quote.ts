@@ -62,6 +62,9 @@ const quoteSchema = new Schema(
     lockedAt: Date,
     approvedAt: Date,
     version: { type: Number, default: 1 },
+    customValues: { type: Map, of: Schema.Types.Mixed },
+    calculatedValues: { type: Map, of: Number },
+    customWorkflow: Schema.Types.Mixed,
   },
   { timestamps: true },
 );

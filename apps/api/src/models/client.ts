@@ -14,6 +14,8 @@ const clientSchema = new Schema(
     gstin: String,
     notes: String,
     isActive: { type: Boolean, default: true },
+    customValues: { type: Map, of: Schema.Types.Mixed },
+    calculatedValues: { type: Map, of: Number },
   },
   { timestamps: true },
 );

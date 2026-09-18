@@ -5,6 +5,7 @@ import { MeasurementItem } from '../models/measurement.js';
 import { Project } from '../models/project.js';
 import { Quote } from '../models/quote.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
+import { CustomDefinition } from '../models/operations.js';
 
 const createQuoteInput = z.object({
   projectId: z.string().regex(/^[a-f\d]{24}$/i),
@@ -75,6 +76,8 @@ quoteRouter.post('/', requirePermission('quotes.create'), async (request, respon
     const taxPaise = Math.round(subtotalPaise * input.gstPercent / 100);
     const totalPaise = subtotalPaise + taxPaise;
     const count = await Quote.countDocuments({ organizationId });
+    const workflowDefinition = await CustomDefinition.findOne({ organizationId, definitionType: 'workflow', status: 'active', 'configuration.entity': 'quote' }).sort({ version: -1 }).lean();
+    const workflowStages = (workflowDefinition?.configuration as { stages?: Array<{ key: string }> } | undefined)?.stages ?? [];
     const quote = await Quote.create({
       quoteNumber: `QT-${new Date().getFullYear()}-${String(count + 1).padStart(5, '0')}`, revision: 0,
       projectId: project._id, clientId: project.clientId, status: 'draft',
@@ -82,6 +85,7 @@ quoteRouter.post('/', requirePermission('quotes.create'), async (request, respon
       options: [{ name: card.name, kind: 'custom', subtotalPaise, taxPaise, totalPaise }],
       pricingSnapshot: { currency: 'INR', rateCardId: card._id, rateCardName: card.name, rateCardVersion: card.version, subtotalPaise, gstPercent: input.gstPercent, taxPaise, totalPaise },
       organizationId, createdBy: request.auth!.userId, updatedBy: request.auth!.userId,
+      customWorkflow: workflowDefinition && workflowStages[0] ? { definitionKey: workflowDefinition.key, definitionVersion: workflowDefinition.version, currentStageKey: workflowStages[0].key, completed: false, history: [{ stageKey: workflowStages[0].key, changedAt: new Date(), changedBy: request.auth!.userId }] } : undefined,
     });
     response.status(201).json({ data: quote });
   } catch (error) { next(error); }

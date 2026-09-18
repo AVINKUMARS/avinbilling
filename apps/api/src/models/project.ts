@@ -22,6 +22,9 @@ const projectSchema = new Schema(
     status: { type: String, enum: ['lead', 'survey', 'estimating', 'quoted', 'approved', 'active', 'completed', 'cancelled'], default: 'lead' },
     areas: [areaSchema],
     tags: [String],
+    customValues: { type: Map, of: Schema.Types.Mixed },
+    calculatedValues: { type: Map, of: Number },
+    customWorkflow: Schema.Types.Mixed,
   },
   { timestamps: true },
 );

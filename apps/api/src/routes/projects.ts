@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { Project } from '../models/project.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
+import { CustomDefinition } from '../models/operations.js';
 
 const projectInput = z.object({
   name: z.string().trim().min(2).max(160),
@@ -34,6 +35,13 @@ projectRouter.post('/', requirePermission('projects.create'), async (request, re
   try {
     const input = projectInput.parse(request.body);
     const count = await Project.countDocuments({ organizationId: request.auth!.organizationId });
+    const workflowDefinition = await CustomDefinition.findOne({
+      organizationId: request.auth!.organizationId,
+      definitionType: 'workflow',
+      status: 'active',
+      'configuration.entity': 'project',
+    }).sort({ version: -1 }).lean();
+    const workflowStages = (workflowDefinition?.configuration as { stages?: Array<{ key: string }> } | undefined)?.stages ?? [];
     const data = await Project.create({
       ...input,
       projectNumber: `PRJ-${String(count + 1).padStart(5, '0')}`,
@@ -41,6 +49,13 @@ projectRouter.post('/', requirePermission('projects.create'), async (request, re
       createdBy: request.auth!.userId,
       updatedBy: request.auth!.userId,
       areas: [],
+      customWorkflow: workflowDefinition && workflowStages[0] ? {
+        definitionKey: workflowDefinition.key,
+        definitionVersion: workflowDefinition.version,
+        currentStageKey: workflowStages[0].key,
+        completed: false,
+        history: [{ stageKey: workflowStages[0].key, changedAt: new Date(), changedBy: request.auth!.userId }],
+      } : undefined,
     });
     response.status(201).json({ data });
   } catch (error) { next(error); }

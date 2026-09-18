@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   Archive,
   Braces,
@@ -12,6 +12,7 @@ import {
   Pencil,
   Play,
   Plus,
+  Upload,
   Workflow,
 } from "lucide-react";
 import { apiRequest } from "../lib/api";
@@ -261,6 +262,26 @@ export function CustomBuilders() {
     URL.revokeObjectURL(link.href);
   }
 
+  async function importDefinition(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    try {
+      const definition = JSON.parse(await file.text()) as CustomDefinition;
+      await apiRequest("/customization/import", {
+        method: "POST",
+        body: JSON.stringify({ definitionType: definition.definitionType, key: definition.key, name: definition.name, configuration: definition.configuration }),
+      });
+      setMessage(`${definition.name} imported as a new draft version.`);
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to import definition");
+    } finally {
+      event.target.value = "";
+      setBusy(false);
+    }
+  }
+
   const preview = configuration();
 
   return (
@@ -379,6 +400,7 @@ export function CustomBuilders() {
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h2 className="text-xl font-black text-ink">Saved {builderTypes.find((item) => item.key === selectedType)?.label}</h2><p className="mt-1 text-sm text-slate-500">Activate one version when it is ready for business use.</p></div>
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"><Upload size={14} /> Import JSON<input type="file" accept="application/json,.json" onChange={(event) => void importDefinition(event)} className="hidden" /></label>
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="rounded-xl border border-slate-300 px-3 py-2 text-sm"><option value="all">All statuses</option><option value="draft">Draft</option><option value="active">Active</option><option value="archived">Archived</option></select>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">

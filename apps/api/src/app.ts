@@ -19,6 +19,7 @@ import { operationsRouter } from './routes/operations.js';
 import { organizationRouter } from './routes/organization.js';
 import { requireAuth } from './middleware/auth.js';
 import { idempotency } from './middleware/idempotency.js';
+import { customizationRouter } from './routes/customization.js';
 
 export const app = express();
 
@@ -43,6 +44,7 @@ protectedRouter.use('/calculations', calculationRouter);
 protectedRouter.use('/quotes', quoteRouter);
 protectedRouter.use('/operations', operationsRouter);
 protectedRouter.use('/organization', organizationRouter);
+protectedRouter.use('/customization', customizationRouter);
 app.use('/api/v1', protectedRouter);
 
 app.use((_request, response) => response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } }));

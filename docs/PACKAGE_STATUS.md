@@ -13,7 +13,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ## Current priority
 
-**Next package:** Runtime Customization Integration
+**In progress:** Runtime Customization Integration
 
 ## Package summary
 
@@ -33,7 +33,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 12 | Users, Roles and Branches | Completed | Invitations, permissions, branch assignment, password controls and activity history |
 | 13 | Custom Builders | Completed | Fields, forms, formulas, workflows and document-template builders |
 | 14 | Additional Industry Packs | Completed | Eight configurable packs with installers, examples, formulas and workflows |
-| 15 | Runtime Customization Integration | Pending | Use active custom definitions inside real screens, calculations and documents |
+| 15 | Runtime Customization Integration | In progress | Use active custom definitions inside real screens, calculations and documents |
 | 16 | Advanced Project Costing | Pending | Complete estimated-versus-actual job costing |
 | 17 | Branch Data Isolation | Pending | Active branch selector and branch-restricted business records |
 | 18 | Service and Warranty | Pending | Complaints, service jobs, warranty and technician visits |
@@ -179,7 +179,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Seed example data separately for each pack
 - [x] GitHub commit `a6b9e28`
 
-### [ ] 15. Runtime Customization Integration
+### [~] 15. Runtime Customization Integration
 
 - [ ] Render active custom fields on their selected entity screens
 - [ ] Render active custom forms inside projects and measurements

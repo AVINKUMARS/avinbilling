@@ -18,6 +18,8 @@ const measurementItemSchema = new Schema(
     attributes: { type: Map, of: Schema.Types.Mixed },
     status: { type: String, enum: ['draft', 'verified', 'locked'], default: 'draft' },
     measuredAt: { type: Date, default: Date.now },
+    customValues: { type: Map, of: Schema.Types.Mixed },
+    calculatedValues: { type: Map, of: Number },
   },
   { timestamps: true },
 );
