@@ -34,3 +34,10 @@
 - Document template builder
 - Automation rules
 - Kitchen, wardrobe and contractor packs
+
+## Offline synchronization (implemented)
+
+- Per-user IndexedDB cache for workspace reads
+- Durable mutation queue for on-site work without connectivity
+- Automatic retry on reconnect with visible pending and conflict states
+- Server-side idempotency keys to prevent duplicate records during retry

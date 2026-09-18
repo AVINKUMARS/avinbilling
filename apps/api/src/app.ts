@@ -17,6 +17,8 @@ import { calculationRouter } from './routes/calculations.js';
 import { quoteRouter } from './routes/quotes.js';
 import { operationsRouter } from './routes/operations.js';
 import { organizationRouter } from './routes/organization.js';
+import { requireAuth } from './middleware/auth.js';
+import { idempotency } from './middleware/idempotency.js';
 
 export const app = express();
 
@@ -29,16 +31,19 @@ app.get('/', (_request, response) => response.json({ name: 'Avin Business Suite 
 app.use('/api/v1/health', healthRouter);
 app.use('/api/v1/platform', platformRouter);
 app.use('/api/v1/auth', authRouter);
-app.use('/api/v1/clients', clientRouter);
-app.use('/api/v1/brands', brandRouter);
-app.use('/api/v1/projects', projectRouter);
-app.use('/api/v1/dashboard', dashboardRouter);
-app.use('/api/v1/catalog', catalogRouter);
-app.use('/api/v1/measurements', measurementRouter);
-app.use('/api/v1/calculations', calculationRouter);
-app.use('/api/v1/quotes', quoteRouter);
-app.use('/api/v1/operations', operationsRouter);
-app.use('/api/v1/organization', organizationRouter);
+const protectedRouter = express.Router();
+protectedRouter.use(requireAuth, idempotency);
+protectedRouter.use('/clients', clientRouter);
+protectedRouter.use('/brands', brandRouter);
+protectedRouter.use('/projects', projectRouter);
+protectedRouter.use('/dashboard', dashboardRouter);
+protectedRouter.use('/catalog', catalogRouter);
+protectedRouter.use('/measurements', measurementRouter);
+protectedRouter.use('/calculations', calculationRouter);
+protectedRouter.use('/quotes', quoteRouter);
+protectedRouter.use('/operations', operationsRouter);
+protectedRouter.use('/organization', organizationRouter);
+app.use('/api/v1', protectedRouter);
 
 app.use((_request, response) => response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } }));
 app.use(errorHandler);

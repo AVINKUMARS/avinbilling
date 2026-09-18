@@ -372,6 +372,12 @@ export function Workspace({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const reloadAfterSync = () => void load();
+    window.addEventListener("avin:data-synced", reloadAfterSync);
+    return () => window.removeEventListener("avin:data-synced", reloadAfterSync);
+  }, [load]);
+
   async function createCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
