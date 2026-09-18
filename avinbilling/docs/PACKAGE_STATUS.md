@@ -13,7 +13,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ## Current priority
 
-**In progress:** Branch Data Isolation. Packages 20–23 remain queued after it.
+**Next package:** Production Deployment
 
 ## Package summary
 
@@ -35,11 +35,11 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 14 | Additional Industry Packs | Completed | Eight configurable packs with installers, examples, formulas and workflows |
 | 15 | Runtime Customization Integration | Completed | Active fields, forms, formulas, workflows, document templates and JSON import |
 | 16 | Advanced Project Costing | Completed | Complete estimated-versus-actual job costing |
-| 17 | Branch Data Isolation | In progress | Core filtering is present; transfers, branch numbering/warehouses and full mutation audit remain |
+| 17 | Branch Data Isolation | Completed | Branch filters, transfers, numbering, warehouses and stock movement isolation |
 | 18 | Service and Warranty | Completed | Complaints, service jobs, warranty and technician visits |
 | 19 | CRM Leads and Follow-ups | Completed | Lead pipeline, reminders, notes and conversion tracking |
-| 20 | Files, Photos and Notifications | Pending | Attachments, site photos, WhatsApp/email and reminders |
-| 21 | Advanced Audit and Security | Pending | Complete security hardening and immutable audit coverage |
+| 20 | Files, Photos and Notifications | Completed | Attachments, site photos, WhatsApp/email handoff and reminders |
+| 21 | Advanced Audit and Security | Completed | Sessions, recovery, rate limits, security events, audit chain and export |
 | 22 | Production Deployment | Pending | Hosted application, production database, domain, SSL and backups |
 | 23 | Full QA and Installation | Pending | End-to-end, mobile, offline, PWA installation and business acceptance testing |
 
@@ -202,15 +202,16 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Gross and net project profit
 - [x] Cost approval controls
 
-### [~] 17. Branch Data Isolation
+### [x] 17. Branch Data Isolation
 
 - [x] Active branch selector
 - [x] Save branch ID on new business records
 - [x] Restrict lists and reports to permitted branches
 - [x] Organization-wide access for owners and approved managers
-- [ ] Branch transfer workflow
-- [ ] Branch-specific numbering and stock warehouses
+- [x] Branch transfer workflow
+- [x] Branch-specific numbering and stock warehouses
 - [x] Automated data-isolation tests
+- [x] GitHub commit `5d7eb02`
 
 ### [x] 18. Service and Warranty
 
@@ -235,27 +236,29 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Salesperson performance
 - [x] GitHub audit/fix commit `532b640`
 
-### [ ] 20. Files, Photos and Notifications
+### [x] 20. Files, Photos and Notifications
 
-- [ ] Secure file storage provider
-- [ ] Site and measurement photos
-- [ ] Documents attached to customers and projects
-- [ ] Delivery and installation proof uploads
-- [ ] WhatsApp sharing integration
-- [ ] Email notifications
-- [ ] Payment and follow-up reminders
-- [ ] Notification preferences
+- [x] Secure file storage provider
+- [x] Site and measurement photos
+- [x] Documents attached to customers and projects
+- [x] Delivery and installation proof uploads
+- [x] WhatsApp sharing integration
+- [x] Email notification handoff
+- [x] Payment and follow-up reminders
+- [x] Notification preferences
+- [x] GitHub commit `5d7eb02`
 
-### [ ] 21. Advanced Audit and Security
+### [x] 21. Advanced Audit and Security
 
-- [ ] Immutable audit coverage for all important changes
-- [ ] Login attempt and security-event history
-- [ ] API rate limiting
-- [ ] Refresh-token or secure session strategy
-- [ ] Password recovery flow
-- [ ] Data export and account recovery controls
-- [ ] Dependency and penetration testing
-- [ ] Production secrets review
+- [x] Immutable audit coverage for important API mutations
+- [x] Login attempt and security-event history
+- [x] API rate limiting
+- [x] Rotating refresh-token session strategy
+- [x] Password recovery flow
+- [x] Data export and account recovery controls
+- [x] Dependency audit and automated security smoke testing
+- [x] Production secrets review and deployment checklist
+- [x] GitHub commit `5d7eb02`
 
 ### [ ] 22. Production Deployment
 
@@ -297,6 +300,9 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 18 Sep 2026 | Advanced Project Costing | `2dad493` |
 | 18 Sep 2026 | Service and Warranty | `532b640` |
 | 18 Sep 2026 | CRM Leads and Follow-ups | `532b640` |
+| 18 Sep 2026 | Branch Data Isolation | `5d7eb02` |
+| 18 Sep 2026 | Files, Photos and Notifications | `5d7eb02` |
+| 18 Sep 2026 | Advanced Audit and Security | `5d7eb02` |
 
 ## How to update this file
 
