@@ -4,8 +4,8 @@ import { env } from './config/env.js';
 
 async function start() {
   await connectDatabase();
-  app.listen(env.PORT, () => {
-    console.log(`Avin API listening on http://localhost:${env.PORT}`);
+  app.listen(env.PORT, '0.0.0.0', () => {
+    console.log(`Avin API listening on http://0.0.0.0:${env.PORT}`);
   });
 }
 
