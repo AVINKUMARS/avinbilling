@@ -5,7 +5,7 @@ services:
     plan: free
     region: singapore
     rootDir: .
-    buildCommand: npm ci && npm run build -w @avin/api
+    buildCommand: npm ci --include=dev && npm run build -w @avin/api
     startCommand: npm run start -w @avin/api
     healthCheckPath: /api/v1/health
     envVars:
@@ -21,7 +21,7 @@ services:
     name: avin-business-suite-web
     runtime: static
     rootDir: .
-    buildCommand: npm ci && npm run build -w @avin/web
+    buildCommand: npm ci --include=dev && npm run build -w @avin/web
     staticPublishPath: apps/web/dist
     envVars:
       - key: VITE_API_URL
