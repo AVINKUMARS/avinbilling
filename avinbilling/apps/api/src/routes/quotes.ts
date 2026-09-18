@@ -4,7 +4,7 @@ import { RateCard } from '../models/catalog.js';
 import { MeasurementItem } from '../models/measurement.js';
 import { Project } from '../models/project.js';
 import { Quote } from '../models/quote.js';
-import { requireAuth, requirePermission } from '../middleware/auth.js';
+import { requireAuth, requirePermission, tenantFilter } from '../middleware/auth.js';
 import { CustomDefinition } from '../models/operations.js';
 
 const createQuoteInput = z.object({
@@ -28,7 +28,7 @@ quoteRouter.use(requireAuth);
 
 quoteRouter.get('/', async (request, response, next) => {
   try {
-    const data = await Quote.find({ organizationId: request.auth!.organizationId })
+    const data = await Quote.find(tenantFilter(request.auth!))
       .populate('projectId', 'name projectNumber siteAddress')
       .populate('clientId', 'name phone email billingAddress siteAddress gstin')
       .sort({ createdAt: -1 })
@@ -41,9 +41,10 @@ quoteRouter.post('/', requirePermission('quotes.create'), async (request, respon
   try {
     const input = createQuoteInput.parse(request.body);
     const organizationId = request.auth!.organizationId;
+    const filter = tenantFilter(request.auth!);
     const [project, measurements, card] = await Promise.all([
-      Project.findOne({ _id: input.projectId, organizationId }).lean(),
-      MeasurementItem.find({ _id: { $in: input.measurementIds }, projectId: input.projectId, organizationId }).lean(),
+      Project.findOne({ _id: input.projectId, ...filter }).lean(),
+      MeasurementItem.find({ _id: { $in: input.measurementIds }, projectId: input.projectId, ...filter }).lean(),
       RateCard.findOne({ _id: input.rateCardId, organizationId }).populate('lines.catalogItemId').lean(),
     ]);
     if (!project) { response.status(404).json({ error: { code: 'PROJECT_NOT_FOUND', message: 'Project not found' } }); return; }
@@ -75,7 +76,7 @@ quoteRouter.post('/', requirePermission('quotes.create'), async (request, respon
     const subtotalPaise = items.reduce((sum, item) => sum + item.lineTotalPaise, 0);
     const taxPaise = Math.round(subtotalPaise * input.gstPercent / 100);
     const totalPaise = subtotalPaise + taxPaise;
-    const count = await Quote.countDocuments({ organizationId });
+    const count = await Quote.countDocuments(tenantFilter(request.auth!));
     const workflowDefinition = await CustomDefinition.findOne({ organizationId, definitionType: 'workflow', status: 'active', 'configuration.entity': 'quote' }).sort({ version: -1 }).lean();
     const workflowStages = (workflowDefinition?.configuration as { stages?: Array<{ key: string }> } | undefined)?.stages ?? [];
     const quote = await Quote.create({
@@ -84,7 +85,7 @@ quoteRouter.post('/', requirePermission('quotes.create'), async (request, respon
       validUntil: new Date(Date.now() + input.validDays * 86_400_000), items,
       options: [{ name: card.name, kind: 'custom', subtotalPaise, taxPaise, totalPaise }],
       pricingSnapshot: { currency: 'INR', rateCardId: card._id, rateCardName: card.name, rateCardVersion: card.version, subtotalPaise, gstPercent: input.gstPercent, taxPaise, totalPaise },
-      organizationId, createdBy: request.auth!.userId, updatedBy: request.auth!.userId,
+      organizationId, branchId: request.auth!.activeBranchId, createdBy: request.auth!.userId, updatedBy: request.auth!.userId,
       customWorkflow: workflowDefinition && workflowStages[0] ? { definitionKey: workflowDefinition.key, definitionVersion: workflowDefinition.version, currentStageKey: workflowStages[0].key, completed: false, history: [{ stageKey: workflowStages[0].key, changedAt: new Date(), changedBy: request.auth!.userId }] } : undefined,
     });
     response.status(201).json({ data: quote });
@@ -95,16 +96,17 @@ quoteRouter.post('/:id/revise', requirePermission('quotes.create'), async (reque
   try {
     const input = z.object({ discountPercent: z.number().min(0).max(100).default(0), validDays: z.number().int().min(1).max(365).default(30) }).parse(request.body);
     const organizationId = request.auth!.organizationId;
-    const source = await Quote.findOne({ _id: request.params.id, organizationId }).lean();
+    const filter = tenantFilter(request.auth!);
+    const source = await Quote.findOne({ _id: request.params.id, ...filter }).lean();
     if (!source) { response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Quotation not found' } }); return; }
     if (source.lockedAt || source.status === 'approved') { response.status(409).json({ error: { code: 'LOCKED', message: 'Approved quotations cannot be revised' } }); return; }
-    const latest = await Quote.findOne({ organizationId, quoteNumber: source.quoteNumber }).sort({ revision: -1 }).lean();
+    const latest = await Quote.findOne({ ...filter, quoteNumber: source.quoteNumber }).sort({ revision: -1 }).lean();
     const snapshot = source.pricingSnapshot as { subtotalPaise: number; gstPercent: number; rateCardId: unknown; rateCardName: string; rateCardVersion: number };
     const discountPaise = Math.round(snapshot.subtotalPaise * input.discountPercent / 100);
     const taxablePaise = snapshot.subtotalPaise - discountPaise; const taxPaise = Math.round(taxablePaise * snapshot.gstPercent / 100); const totalPaise = taxablePaise + taxPaise;
     const { _id, createdAt, updatedAt, ...copy } = source;
     const data = await Quote.create({ ...copy, revision: (latest?.revision ?? source.revision) + 1, status: 'draft', validUntil: new Date(Date.now() + input.validDays * 86_400_000), pricingSnapshot: { ...snapshot, discountPercent: input.discountPercent, discountPaise, taxablePaise, taxPaise, totalPaise }, options: source.options.map((option) => ({ ...option, taxPaise, totalPaise })), createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
-    await Quote.updateMany({ organizationId, quoteNumber: source.quoteNumber, _id: { $ne: data._id }, status: 'draft' }, { $set: { status: 'revised' } });
+    await Quote.updateMany({ ...filter, quoteNumber: source.quoteNumber, _id: { $ne: data._id }, status: 'draft' }, { $set: { status: 'revised' } });
     response.status(201).json({ data });
   } catch (error) { next(error); }
 });

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { calculateProjectCosting } from "@avin/shared";
-import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { requireAuth, requirePermission, tenantFilter } from '../middleware/auth.js';
 import { ApiError } from "../middleware/error-handler.js";
 import { Project } from "../models/project.js";
 import { Quote } from "../models/quote.js";
@@ -27,8 +27,8 @@ const costInput = z.object({
 });
 const changeInput = z.object({ title: z.string().trim().min(2).max(160), description: z.string().trim().max(1_000).optional(), revenueImpactPaise: paise.default(0), costImpactPaise: paise.default(0), reason: z.string().trim().max(300).optional() });
 
-async function ensureProject(organizationId: unknown, projectId: string) {
-  const project = await Project.findOne({ _id: projectId, organizationId }).select("name projectNumber status").lean();
+async function ensureProject(auth: NonNullable<import('express').Request['auth']>, projectId: string) {
+  const project = await Project.findOne({ _id: projectId, ...tenantFilter(auth) }).select("name projectNumber status").lean();
   if (!project) throw new ApiError(404, "Project not found", "PROJECT_NOT_FOUND");
   return project;
 }
@@ -37,7 +37,7 @@ costingRouter.get("/projects/:projectId", async (request, response, next) => {
   try {
     const projectId = objectId.parse(request.params.projectId);
     const organizationId = request.auth!.organizationId;
-    const project = await ensureProject(organizationId, projectId);
+    const project = await ensureProject(request.auth!, projectId);
     const [budget, costs, changes, quotes, purchases] = await Promise.all([
       ProjectBudget.findOne({ organizationId, projectId }).lean(),
       ProjectCost.find({ organizationId, projectId }).sort({ incurredAt: -1, createdAt: -1 }).lean(),
@@ -61,11 +61,12 @@ costingRouter.put("/projects/:projectId/budget", requirePermission("costing.mana
   try {
     const projectId = objectId.parse(request.params.projectId);
     const organizationId = request.auth!.organizationId;
-    await ensureProject(organizationId, projectId);
+    await ensureProject(request.auth!, projectId);
     const existing = await ProjectBudget.findOne({ organizationId, projectId });
     if (existing?.status === "approved") throw new ApiError(409, "Approved budgets are locked", "BUDGET_LOCKED");
     const input = budgetInput.parse(request.body);
-    const data = await ProjectBudget.findOneAndUpdate({ organizationId, projectId }, { $set: { ...input, status: "draft", updatedBy: request.auth!.userId }, $setOnInsert: { createdBy: request.auth!.userId } }, { new: true, upsert: true });
+    const data = await ProjectBudget.findOneAndUpdate({ organizationId, projectId }, { $set: { ...input, status: "draft", updatedBy: request.auth!.userId }, $setOnInsert: { branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId } }, { new: true, upsert: true });
     response.json({ data });
   } catch (error) { next(error); }
 });
@@ -90,11 +91,12 @@ costingRouter.post("/projects/:projectId/costs", requirePermission("costing.mana
   try {
     const projectId = objectId.parse(request.params.projectId);
     const organizationId = request.auth!.organizationId;
-    await ensureProject(organizationId, projectId);
+    await ensureProject(request.auth!, projectId);
     const input = costInput.parse(request.body);
     const budget = await ProjectBudget.findOne({ organizationId, projectId }).lean();
     const requiresApproval = !budget || input.amountPaise >= budget.approvalThresholdPaise;
-    const data = await ProjectCost.create({ ...input, organizationId, projectId, status: requiresApproval ? "pending" : "approved", approvedBy: requiresApproval ? undefined : request.auth!.userId, approvedAt: requiresApproval ? undefined : new Date(), createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
+    const data = await ProjectCost.create({ ...input, organizationId, projectId, status: requiresApproval ? "pending" : "approved", approvedBy: requiresApproval ? undefined : request.auth!.userId, approvedAt: requiresApproval ? undefined : new Date(), branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
     response.status(201).json({ data });
   } catch (error) { next(error); }
 });
@@ -112,10 +114,11 @@ costingRouter.post("/projects/:projectId/changes", requirePermission("costing.ma
   try {
     const projectId = objectId.parse(request.params.projectId);
     const organizationId = request.auth!.organizationId;
-    await ensureProject(organizationId, projectId);
+    await ensureProject(request.auth!, projectId);
     const input = changeInput.parse(request.body);
     const count = await ChangeOrder.countDocuments({ organizationId, projectId });
-    const data = await ChangeOrder.create({ ...input, organizationId, projectId, changeNumber: `VO-${String(count + 1).padStart(4, "0")}`, status: "submitted", createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
+    const data = await ChangeOrder.create({ ...input, organizationId, projectId, changeNumber: `VO-${String(count + 1).padStart(4, "0")}`, status: "submitted", branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
     response.status(201).json({ data });
   } catch (error) { next(error); }
 });

@@ -32,6 +32,7 @@ export async function apiRequest<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const token = localStorage.getItem("avin_token");
+  const activeBranchId = localStorage.getItem("avin_active_branch");
   const method = (options.method ?? "GET").toUpperCase();
   const isMutation = mutationMethods.has(method);
   const mutationId = isMutation ? crypto.randomUUID() : undefined;
@@ -65,6 +66,7 @@ export async function apiRequest<T>(
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(activeBranchId ? { "x-active-branch": activeBranchId } : {}),
         ...(mutationId ? { "Idempotency-Key": mutationId } : {}),
         ...options.headers,
       },

@@ -9,6 +9,7 @@ declare global {
         role: string;
         permissions: string[];
         branchIds: Types.ObjectId[];
+        activeBranchId?: Types.ObjectId;
       };
     }
   }

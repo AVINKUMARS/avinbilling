@@ -1,7 +1,7 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import { z } from "zod";
-import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { requireAuth, requirePermission, tenantFilter } from '../middleware/auth.js';
 import { Quote } from "../models/quote.js";
 import { Client } from "../models/client.js";
 import { Project } from "../models/project.js";
@@ -67,7 +67,8 @@ operationsRouter.post(
               paymentType: "advance",
               paymentMethod: input.paymentMethod,
               transactionReference: input.transactionReference,
-              createdBy: request.auth!.userId,
+              branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId,
               updatedBy: request.auth!.userId,
             },
           ],
@@ -192,7 +193,8 @@ operationsRouter.post(
               workflow,
               qualityChecklist,
               calculationVersion: 2,
-              createdBy: request.auth!.userId,
+              branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId,
               updatedBy: request.auth!.userId,
             },
           ],
@@ -217,7 +219,7 @@ operationsRouter.post(
 operationsRouter.get("/payments", async (request, response, next) => {
   try {
     response.json({
-      data: await Payment.find({ organizationId: request.auth!.organizationId })
+      data: await Payment.find({ ...tenantFilter(request.auth!) })
         .populate("quoteId", "quoteNumber")
         .sort({ receivedAt: -1 })
         .lean(),
@@ -253,8 +255,7 @@ operationsRouter.post(
       const organizationId = request.auth!.organizationId;
       const quote = await Quote.findOne({
         _id: input.quoteId,
-        organizationId,
-        status: "approved",
+        ...tenantFilter(request.auth!), status: "approved",
       }).lean();
       if (!quote) {
         response
@@ -272,8 +273,7 @@ operationsRouter.post(
       );
       const existing = await Payment.find({
         quoteId: quote._id,
-        organizationId,
-        status: "recorded",
+        ...tenantFilter(request.auth!), status: "recorded",
       }).lean();
       const paid = existing.reduce(
         (sum, payment) =>
@@ -299,6 +299,7 @@ operationsRouter.post(
         ...input,
         organizationId,
         receiptNumber: `REC-${String(count + 1).padStart(5, "0")}`,
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -327,7 +328,7 @@ operationsRouter.post(
 operationsRouter.get("/boms", async (request, response, next) => {
   try {
     response.json({
-      data: await Bom.find({ organizationId: request.auth!.organizationId })
+      data: await Bom.find({ ...tenantFilter(request.auth!) })
         .populate("quoteId", "quoteNumber")
         .sort({ createdAt: -1 })
         .lean(),
@@ -439,7 +440,7 @@ operationsRouter.patch(
 operationsRouter.get("/invoices", async (request, response, next) => {
   try {
     response.json({
-      data: await Invoice.find({ organizationId: request.auth!.organizationId })
+      data: await Invoice.find({ ...tenantFilter(request.auth!) })
         .populate("quoteId", "quoteNumber")
         .sort({ createdAt: -1 })
         .lean(),
@@ -465,8 +466,7 @@ operationsRouter.post(
       const organizationId = request.auth!.organizationId;
       const quote = await Quote.findOne({
         _id: quoteId,
-        organizationId,
-        status: "approved",
+        ...tenantFilter(request.auth!), status: "approved",
       }).lean();
       if (!quote) {
         response
@@ -485,8 +485,7 @@ operationsRouter.post(
       }).lean();
       const payments = await Payment.find({
         quoteId,
-        organizationId,
-        status: "recorded",
+        ...tenantFilter(request.auth!), status: "recorded",
       }).lean();
       const snapshot = quote.pricingSnapshot as {
         subtotalPaise: number;
@@ -528,6 +527,7 @@ operationsRouter.post(
         balancePaise: snapshot.totalPaise - paidPaise,
         status: "draft",
         dueAt: new Date(Date.now() + 15 * 86_400_000),
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -545,8 +545,7 @@ operationsRouter.patch(
       const data = await Invoice.findOneAndUpdate(
         {
           _id: request.params.id,
-          organizationId: request.auth!.organizationId,
-          status: "draft",
+          ...tenantFilter(request.auth!), status: "draft",
         },
         {
           $set: {
@@ -598,8 +597,7 @@ operationsRouter.post(
       const organizationId = request.auth!.organizationId;
       const invoice = await Invoice.findOne({
         _id: input.invoiceId,
-        organizationId,
-        status: { $ne: "cancelled" },
+        ...tenantFilter(request.auth!), status: { $ne: "cancelled" },
       });
       if (!invoice) {
         response.status(404).json({ error: { message: "Invoice not found" } });
@@ -620,6 +618,7 @@ operationsRouter.post(
         organizationId,
         quoteId: invoice.quoteId,
         creditNoteNumber: `CN-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`,
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -674,6 +673,7 @@ operationsRouter.post(
         ...input,
         supplierCode: `SUP-${String(count + 1).padStart(4, "0")}`,
         organizationId: request.auth!.organizationId,
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -750,6 +750,7 @@ operationsRouter.post(
         expectedAt: input.expectedAt,
         items,
         totalPaise,
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -767,8 +768,7 @@ operationsRouter.patch(
       const data = await PurchaseOrder.findOneAndUpdate(
         {
           _id: request.params.id,
-          organizationId: request.auth!.organizationId,
-          status: "draft",
+          ...tenantFilter(request.auth!), status: "draft",
         },
         { $set: { status: "ordered", updatedBy: request.auth!.userId } },
         { new: true },
@@ -826,7 +826,8 @@ operationsRouter.post(
             reorderLevel: input.reorderLevel,
             updatedBy: request.auth!.userId,
           },
-          $setOnInsert: { createdBy: request.auth!.userId },
+          $setOnInsert: { branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId },
         },
         { upsert: true, new: true },
       );
@@ -878,8 +879,7 @@ operationsRouter.post(
       await session.withTransaction(async () => {
         const po = await PurchaseOrder.findOne({
           _id: input.purchaseOrderId,
-          organizationId,
-          status: { $in: ["ordered", "part_received"] },
+          ...tenantFilter(request.auth!), status: { $in: ["ordered", "part_received"] },
         }).session(session);
         if (!po) throw new Error("Ordered purchase order not found");
         const count = await GoodsReceipt.countDocuments({
@@ -891,7 +891,8 @@ operationsRouter.post(
               ...input,
               organizationId,
               receiptNumber: `GRN-${String(count + 1).padStart(5, "0")}`,
-              createdBy: request.auth!.userId,
+              branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId,
               updatedBy: request.auth!.userId,
             },
           ],
@@ -907,7 +908,8 @@ operationsRouter.post(
             {
               $inc: { onHand: item.quantity },
               $set: { unit: item.unit, updatedBy: request.auth!.userId },
-              $setOnInsert: { createdBy: request.auth!.userId },
+              $setOnInsert: { branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId },
             },
             { upsert: true, new: true, session },
           );
@@ -926,7 +928,8 @@ operationsRouter.post(
                 quantity: item.quantity,
                 unit: item.unit,
                 reference: receipt!.receiptNumber,
-                createdBy: request.auth!.userId,
+                branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId,
                 updatedBy: request.auth!.userId,
               },
             ],
@@ -997,7 +1000,8 @@ operationsRouter.post(
           {
             $inc: { onHand: input.quantity },
             $set: { unit: input.unit, updatedBy: request.auth!.userId },
-            $setOnInsert: { createdBy: request.auth!.userId },
+            $setOnInsert: { branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId },
           },
           { upsert: true, session },
         );
@@ -1011,7 +1015,8 @@ operationsRouter.post(
               organizationId,
               movementNumber: `MOV-${String(count + 1).padStart(6, "0")}`,
               type: "transfer",
-              createdBy: request.auth!.userId,
+              branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId,
               updatedBy: request.auth!.userId,
             },
           ],
@@ -1057,6 +1062,7 @@ operationsRouter.post(
         movementNumber: `MOV-${String(count + 1).padStart(6, "0")}`,
         type: "allocation",
         fromWarehouse: input.warehouse,
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -1103,6 +1109,7 @@ operationsRouter.post(
         deliveryNumber: `DEL-${String(count + 1).padStart(5, "0")}`,
         packingChecklist: ["Frames labelled", "Glass protected", "Hardware packed", "Documents included"].map((label) => ({ label, completed: false })),
         organizationId: request.auth!.organizationId,
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -1156,6 +1163,7 @@ operationsRouter.post(
           { label: "Customer sign-off", completed: false },
         ],
         organizationId: request.auth!.organizationId,
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -1168,8 +1176,9 @@ operationsRouter.post(
 operationsRouter.patch("/installations/:id/status", requirePermission("installation.create"), async (request, response, next) => { try { const status = z.enum(["planned", "in_progress", "snag", "completed"]).parse(request.body.status); const installation = await Installation.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); if (!installation) { response.status(404).json({ error: { message: "Installation not found" } }); return; } if (status === "completed" && (installation.checklist.some((entry) => !entry.completed) || !installation.customerSignature)) { response.status(409).json({ error: { message: "Complete the checklist and customer sign-off first" } }); return; } installation.status = status; if (status === "completed") installation.completedAt = new Date(); await installation.save(); response.json({ data: installation }); } catch (e) { next(e); } });
 operationsRouter.patch("/installations/:id/checklist/:index", requirePermission("installation.create"), async (request, response, next) => { try { const installation = await Installation.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }); const index = Number(request.params.index); if (!installation || !installation.checklist[index]) { response.status(404).json({ error: { message: "Checklist item not found" } }); return; } installation.checklist[index]!.completed = z.boolean().parse(request.body.completed); installation.checklist[index]!.notes = typeof request.body.notes === "string" ? request.body.notes.slice(0, 500) : undefined; await installation.save(); response.json({ data: installation }); } catch (e) { next(e); } });
 operationsRouter.post("/installations/:id/snags", requirePermission("installation.create"), async (request, response, next) => { try { const description = z.string().trim().min(3).max(500).parse(request.body.description); const data = await Installation.findOneAndUpdate({ _id: request.params.id, organizationId: request.auth!.organizationId }, { $push: { snagItems: { description, resolved: false } }, $set: { status: "snag", updatedBy: request.auth!.userId } }, { new: true }); response.status(201).json({ data }); } catch (e) { next(e); } });
-operationsRouter.post("/installations/:id/sign-off", requirePermission("installation.create"), async (request, response, next) => { try { const input = z.object({ customerSignatory: z.string().trim().min(2), signature: z.string().min(2).max(20_000) }).parse(request.body); const organizationId = request.auth!.organizationId; const installation = await Installation.findOne({ _id: request.params.id, organizationId }); if (!installation) { response.status(404).json({ error: { message: "Installation not found" } }); return; } installation.customerSignatory = input.customerSignatory; installation.customerSignature = input.signature; installation.signedAt = new Date(); const signoff = installation.checklist.find((entry) => entry.label === "Customer sign-off"); if (signoff) signoff.completed = true; await installation.save(); const count = await CompletionCertificate.countDocuments({ organizationId }); const certificate = await CompletionCertificate.create({ organizationId, certificateNumber: `CC-${String(count + 1).padStart(5, "0")}`, installationId: installation._id, projectId: installation.projectId, customerSignatory: input.customerSignatory, completedAt: new Date(), statement: "Installation work inspected and accepted by the customer.", createdBy: request.auth!.userId, updatedBy: request.auth!.userId }); response.status(201).json({ data: { installation, certificate } }); } catch (e) { next(e); } });
-operationsRouter.get("/completion-certificates", async (request, response, next) => { try { response.json({ data: await CompletionCertificate.find({ organizationId: request.auth!.organizationId }).populate("projectId", "name projectNumber").sort({ createdAt: -1 }).lean() }); } catch (e) { next(e); } });
+operationsRouter.post("/installations/:id/sign-off", requirePermission("installation.create"), async (request, response, next) => { try { const input = z.object({ customerSignatory: z.string().trim().min(2), signature: z.string().min(2).max(20_000) }).parse(request.body); const organizationId = request.auth!.organizationId; const installation = await Installation.findOne({ _id: request.params.id, organizationId }); if (!installation) { response.status(404).json({ error: { message: "Installation not found" } }); return; } installation.customerSignatory = input.customerSignatory; installation.customerSignature = input.signature; installation.signedAt = new Date(); const signoff = installation.checklist.find((entry) => entry.label === "Customer sign-off"); if (signoff) signoff.completed = true; await installation.save(); const count = await CompletionCertificate.countDocuments({ organizationId }); const certificate = await CompletionCertificate.create({ organizationId, certificateNumber: `CC-${String(count + 1).padStart(5, "0")}`, installationId: installation._id, projectId: installation.projectId, customerSignatory: input.customerSignatory, completedAt: new Date(), statement: "Installation work inspected and accepted by the customer.", branchId: request.auth!.activeBranchId,
+        createdBy: request.auth!.userId, updatedBy: request.auth!.userId }); response.status(201).json({ data: { installation, certificate } }); } catch (e) { next(e); } });
+operationsRouter.get("/completion-certificates", async (request, response, next) => { try { response.json({ data: await CompletionCertificate.find({ ...tenantFilter(request.auth!) }).populate("projectId", "name projectNumber").sort({ createdAt: -1 }).lean() }); } catch (e) { next(e); } });
 
 function reportDateRange(fromValue: unknown, toValue: unknown) {
   const from =
@@ -1191,9 +1200,9 @@ operationsRouter.get("/reports/overview", async (request, response, next) => {
     const [quotes, approved, revenue, paid, purchase, lowStock, invoices] =
       await Promise.all([
         Quote.countDocuments({ organizationId, createdAt }),
-        Quote.countDocuments({ organizationId, status: "approved", createdAt }),
+        Quote.countDocuments({ ...tenantFilter(request.auth!), status: "approved", createdAt }),
         Quote.aggregate([
-          { $match: { organizationId, status: "approved", createdAt } },
+          { $match: { ...tenantFilter(request.auth!), status: "approved", createdAt } },
           {
             $group: {
               _id: null,
@@ -1202,7 +1211,7 @@ operationsRouter.get("/reports/overview", async (request, response, next) => {
           },
         ]),
         Payment.aggregate([
-          { $match: { organizationId, status: "recorded", receivedAt: createdAt } },
+          { $match: { ...tenantFilter(request.auth!), status: "recorded", receivedAt: createdAt } },
           {
             $group: {
               _id: null,
@@ -1265,7 +1274,7 @@ operationsRouter.get("/reports/projects", async (request, response, next) => {
         .select("name projectNumber status")
         .sort({ createdAt: -1 })
         .lean(),
-      Quote.find({ organizationId, status: "approved", createdAt })
+      Quote.find({ ...tenantFilter(request.auth!), status: "approved", createdAt })
         .select("projectId pricingSnapshot")
         .lean(),
       PurchaseOrder.find({
@@ -1275,7 +1284,7 @@ operationsRouter.get("/reports/projects", async (request, response, next) => {
       })
         .select("projectId totalPaise")
         .lean(),
-      Payment.find({ organizationId, status: "recorded", receivedAt: createdAt })
+      Payment.find({ ...tenantFilter(request.auth!), status: "recorded", receivedAt: createdAt })
         .select("quoteId amountPaise paymentType")
         .lean(),
     ]);
@@ -1357,8 +1366,7 @@ operationsRouter.get("/reports/gst", async (request, response, next) => {
     const result = await Invoice.aggregate([
       {
         $match: {
-          organizationId,
-          status: { $ne: "cancelled" },
+          ...tenantFilter(request.auth!), status: { $ne: "cancelled" },
           createdAt: { $gte: from, $lte: to },
         },
       },
@@ -1397,7 +1405,7 @@ operationsRouter.get("/reports/inventory", async (request, response, next) => {
         .populate("catalogItemId", "name code")
         .sort({ warehouse: 1 })
         .lean(),
-      RateCard.findOne({ organizationId, status: "active" })
+      RateCard.findOne({ organizationId })
         .sort({ effectiveFrom: -1 })
         .lean(),
     ]);
@@ -1630,6 +1638,7 @@ operationsRouter.post(
         configuration,
         version: (previous?.version ?? 0) + 1,
         organizationId: request.auth!.organizationId,
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });
@@ -1701,6 +1710,7 @@ operationsRouter.post(
         version: (latest?.version ?? 0) + 1,
         status: "draft",
         configuration: source.configuration,
+        branchId: request.auth!.activeBranchId,
         createdBy: request.auth!.userId,
         updatedBy: request.auth!.userId,
       });

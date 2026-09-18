@@ -38,6 +38,7 @@ import {
   type OrganizationIndustryPack,
 } from "./IndustryPacks";
 import { RuntimeFields, RuntimeRecordFields, extractCustomValues } from "./RuntimeFields";
+import { useAuthStore } from "../store/auth-store";
 import { ProjectCosting } from "./ProjectCosting";
 
 type User = { id: string; name: string; email: string };

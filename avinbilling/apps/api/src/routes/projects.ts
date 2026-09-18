@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { Project } from '../models/project.js';
-import { requireAuth, requirePermission } from '../middleware/auth.js';
+import { requireAuth, requirePermission, tenantFilter } from '../middleware/auth.js';
 import { CustomDefinition } from '../models/operations.js';
 
 const projectInput = z.object({
@@ -22,7 +22,7 @@ projectRouter.use(requireAuth);
 
 projectRouter.get('/', async (request, response, next) => {
   try {
-    const data = await Project.find({ organizationId: request.auth!.organizationId })
+    const data = await Project.find(tenantFilter(request.auth!))
       .populate('clientId', 'name phone')
       .sort({ createdAt: -1 })
       .limit(100)
@@ -34,7 +34,7 @@ projectRouter.get('/', async (request, response, next) => {
 projectRouter.post('/', requirePermission('projects.create'), async (request, response, next) => {
   try {
     const input = projectInput.parse(request.body);
-    const count = await Project.countDocuments({ organizationId: request.auth!.organizationId });
+    const count = await Project.countDocuments(tenantFilter(request.auth!));
     const workflowDefinition = await CustomDefinition.findOne({
       organizationId: request.auth!.organizationId,
       definitionType: 'workflow',
@@ -46,6 +46,7 @@ projectRouter.post('/', requirePermission('projects.create'), async (request, re
       ...input,
       projectNumber: `PRJ-${String(count + 1).padStart(5, '0')}`,
       organizationId: request.auth!.organizationId,
+      branchId: request.auth!.activeBranchId,
       createdBy: request.auth!.userId,
       updatedBy: request.auth!.userId,
       areas: [],
@@ -64,7 +65,7 @@ projectRouter.post('/', requirePermission('projects.create'), async (request, re
 projectRouter.post('/:id/areas', requirePermission('projects.update'), async (request, response, next) => {
   try {
     const input = areaInput.parse(request.body);
-    const project = await Project.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId });
+    const project = await Project.findOne({ _id: request.params.id, ...tenantFilter(request.auth!) });
     if (!project) { response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Project not found' } }); return; }
     if (input.parentLocalId && !project.areas.some((area) => area.localId === input.parentLocalId)) {
       response.status(400).json({ error: { code: 'INVALID_PARENT', message: 'Parent project area does not exist' } }); return;
