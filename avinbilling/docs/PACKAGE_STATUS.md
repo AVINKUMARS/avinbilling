@@ -222,6 +222,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Parts and service charges
 - [x] Resolution and customer sign-off
 - [x] Warranty-expiry reminders
+- [x] GitHub audit/fix commit `532b640`
 
 ### [x] 19. CRM Leads and Follow-ups
 
@@ -232,6 +233,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Lost-lead reasons
 - [x] Lead-to-project conversion
 - [x] Salesperson performance
+- [x] GitHub audit/fix commit `532b640`
 
 ### [ ] 20. Files, Photos and Notifications
 
@@ -293,6 +295,8 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 18 Sep 2026 | Additional Industry Packs | `a6b9e28` |
 | 18 Sep 2026 | Runtime Customization Integration | `53e571e` |
 | 18 Sep 2026 | Advanced Project Costing | `2dad493` |
+| 18 Sep 2026 | Service and Warranty | `532b640` |
+| 18 Sep 2026 | CRM Leads and Follow-ups | `532b640` |
 
 ## How to update this file
 
