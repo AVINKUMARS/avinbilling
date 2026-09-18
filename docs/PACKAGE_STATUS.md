@@ -13,7 +13,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ## Current priority
 
-**In progress:** Additional Industry Packs
+**Next package:** Runtime Customization Integration
 
 ## Package summary
 
@@ -32,7 +32,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 11 | Offline Synchronization | Completed | IndexedDB cache, mutation queue, retries, conflicts and duplicate protection |
 | 12 | Users, Roles and Branches | Completed | Invitations, permissions, branch assignment, password controls and activity history |
 | 13 | Custom Builders | Completed | Fields, forms, formulas, workflows and document-template builders |
-| 14 | Additional Industry Packs | In progress | Kitchen, wardrobe, interiors, aluminium, glass, contractor and general business |
+| 14 | Additional Industry Packs | Completed | Eight configurable packs with installers, examples, formulas and workflows |
 | 15 | Runtime Customization Integration | Pending | Use active custom definitions inside real screens, calculations and documents |
 | 16 | Advanced Project Costing | Pending | Complete estimated-versus-actual job costing |
 | 17 | Branch Data Isolation | Pending | Active branch selector and branch-restricted business records |
@@ -164,19 +164,20 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ## Pending package details
 
-### [~] 14. Additional Industry Packs
+### [x] 14. Additional Industry Packs
 
-- [ ] Create reusable industry-pack contract and installer
-- [ ] Expand the UPVC pack with full product, measurement, formula, BOM and workflow defaults
-- [ ] Kitchen cabinet pack
-- [ ] Wardrobe pack
-- [ ] Interior works pack
-- [ ] Aluminium windows and doors pack
-- [ ] Glass and mirror work pack
-- [ ] Civil contractor pack
-- [ ] General trading and services pack
-- [ ] Industry-pack selection and configuration screen
-- [ ] Seed example data separately for each pack
+- [x] Create reusable industry-pack contract and installer
+- [x] Expand the UPVC pack with full product, measurement, formula, BOM and workflow defaults
+- [x] Kitchen cabinet pack
+- [x] Wardrobe pack
+- [x] Interior works pack
+- [x] Aluminium windows and doors pack
+- [x] Glass and mirror work pack
+- [x] Civil contractor pack
+- [x] General trading and services pack
+- [x] Industry-pack selection and configuration screen
+- [x] Seed example data separately for each pack
+- [x] GitHub commit `a6b9e28`
 
 ### [ ] 15. Runtime Customization Integration
 
@@ -288,6 +289,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 18 Sep 2026 | Offline Synchronization | `15c5b71` |
 | 18 Sep 2026 | Users, Roles and Branches | `9a353e7` |
 | 18 Sep 2026 | Custom Builders | `36da874` |
+| 18 Sep 2026 | Additional Industry Packs | `a6b9e28` |
 
 ## How to update this file
 
