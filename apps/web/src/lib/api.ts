@@ -19,7 +19,12 @@ function parseBody(body: BodyInit | null | undefined) {
 }
 
 function canQueue(path: string) {
-  return !path.startsWith("/auth/") && !path.startsWith("/calculations/");
+  return (
+    !path.startsWith("/auth/") &&
+    !path.startsWith("/calculations/") &&
+    !path.startsWith("/organization/invitations") &&
+    !path.includes("reset-password")
+  );
 }
 
 export async function apiRequest<T>(

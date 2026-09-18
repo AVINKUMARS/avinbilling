@@ -341,6 +341,88 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, user: Authenticated
   );
 }
 
+function InvitationAcceptanceScreen({ token }: { token: string }) {
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+
+  async function accept(event: FormEvent) {
+    event.preventDefault();
+    if (password !== confirmation) {
+      setStatus('error');
+      setMessage('Passwords do not match.');
+      return;
+    }
+    setStatus('submitting');
+    try {
+      const response = await fetch(`${apiUrl}/auth/accept-invitation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const result = await response.json() as { error?: { message?: string } };
+      if (!response.ok) throw new Error(result.error?.message ?? 'Unable to accept invitation');
+      setStatus('success');
+      setMessage('Your account is ready. You can now sign in.');
+    } catch (error) {
+      setStatus('error');
+      setMessage(error instanceof Error ? error.message : 'Unable to accept invitation');
+    }
+  }
+
+  return (
+    <main className="grid min-h-screen place-items-center bg-canvas px-5 py-10">
+      <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-card md:p-9">
+        <BrandHeader />
+        <p className="mt-10 text-sm font-bold text-brand-600">Team invitation</p>
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-ink">Create your password.</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600">Accept the invitation to join this Avin Business Suite organization.</p>
+        {status === 'success' ? (
+          <div className="mt-7">
+            <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{message}</div>
+            <button
+              type="button"
+              onClick={() => {
+                window.history.replaceState({}, '', window.location.pathname);
+                window.location.reload();
+              }}
+              className="mt-5 w-full rounded-xl bg-slate-900 px-5 py-3.5 font-bold text-white"
+            >
+              Continue to sign in
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={accept} className="mt-7 space-y-4">
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={8}
+              required
+              placeholder="Password (minimum 8 characters)"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3.5"
+            />
+            <input
+              type="password"
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              minLength={8}
+              required
+              placeholder="Confirm password"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3.5"
+            />
+            {message && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{message}</div>}
+            <button disabled={status === 'submitting'} className="w-full rounded-xl bg-brand-600 px-5 py-3.5 font-bold text-white disabled:opacity-50">
+              {status === 'submitting' ? 'Creating account…' : 'Accept invitation'}
+            </button>
+          </form>
+        )}
+      </section>
+    </main>
+  );
+}
+
 function Dashboard({ user, onLogout }: { user: AuthenticatedUser; onLogout: () => void }) {
   const cards = [
     { label: 'Customers', value: '0', note: 'Ready to add', icon: Users },
@@ -402,6 +484,11 @@ export function App() {
       .catch(() => setBootstrapped(false))
       .finally(() => setLoading(false));
   }, []);
+
+  const invitationToken = new URLSearchParams(window.location.search).get('token');
+  if (window.location.pathname === '/accept-invitation' && invitationToken) {
+    return <InvitationAcceptanceScreen token={invitationToken} />;
+  }
 
   if (loading) {
     return <main className="grid min-h-screen place-items-center bg-canvas"><LoaderCircle className="animate-spin text-brand-600" size={34} /></main>;

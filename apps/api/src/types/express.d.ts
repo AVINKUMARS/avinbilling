@@ -8,6 +8,7 @@ declare global {
         organizationId: Types.ObjectId;
         role: string;
         permissions: string[];
+        branchIds: Types.ObjectId[];
       };
     }
   }

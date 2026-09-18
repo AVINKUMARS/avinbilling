@@ -7,6 +7,7 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true, select: false },
     locale: { type: String, default: 'en-IN' },
     isActive: { type: Boolean, default: true },
+    lastLoginAt: Date,
   },
   { timestamps: true },
 );

@@ -3,9 +3,12 @@ import {
   BarChart3,
   Building2,
   CircleDollarSign,
+  Copy,
   Factory,
   FileText,
   Gauge,
+  GitBranch,
+  KeyRound,
   Layers3,
   LogOut,
   Menu,
@@ -15,11 +18,13 @@ import {
   Ruler,
   Search,
   Settings,
+  ShieldCheck,
   ShoppingCart,
   Tags,
   Trash2,
   Truck,
   Users,
+  UserPlus,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -2171,7 +2176,517 @@ function SettingsPage({ brands }: { brands: number }) {
           Save settings and apply theme
         </button>
       </form>
+      <AccessManagement />
     </div>
+  );
+}
+
+type AccessBranch = {
+  _id: string;
+  code: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  isActive: boolean;
+};
+type AccessOption = {
+  roles: Array<{ key: string; label: string; defaultPermissions: string[] }>;
+  permissions: Array<{ key: string; label: string }>;
+};
+type AccessMembership = {
+  _id: string;
+  role: string;
+  permissions: string[];
+  branchIds: AccessBranch[];
+  isActive: boolean;
+  userId: {
+    _id: string;
+    name: string;
+    email: string;
+    isActive: boolean;
+    lastLoginAt?: string;
+  };
+};
+type AccessInvitation = {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  expiresAt: string;
+};
+type AccessActivity = {
+  _id: string;
+  action: string;
+  description: string;
+  createdAt: string;
+  userId?: { name?: string; email?: string };
+};
+
+function AccessManagement() {
+  const [branches, setBranches] = useState<AccessBranch[]>([]);
+  const [memberships, setMemberships] = useState<AccessMembership[]>([]);
+  const [invitations, setInvitations] = useState<AccessInvitation[]>([]);
+  const [activity, setActivity] = useState<AccessActivity[]>([]);
+  const [options, setOptions] = useState<AccessOption | null>(null);
+  const [message, setMessage] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
+
+  const loadAccess = useCallback(async () => {
+    try {
+      const [nextBranches, nextMemberships, nextInvitations, nextActivity, nextOptions] =
+        await Promise.all([
+          apiRequest<AccessBranch[]>("/organization/branches"),
+          apiRequest<AccessMembership[]>("/organization/users"),
+          apiRequest<AccessInvitation[]>("/organization/invitations"),
+          apiRequest<AccessActivity[]>("/organization/activity"),
+          apiRequest<AccessOption>("/organization/access/options"),
+        ]);
+      setBranches(nextBranches);
+      setMemberships(nextMemberships);
+      setInvitations(nextInvitations);
+      setActivity(nextActivity);
+      setOptions(nextOptions);
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to load user access settings",
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAccess();
+  }, [loadAccess]);
+
+  async function createBranch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    try {
+      await apiRequest("/organization/branches", {
+        method: "POST",
+        body: JSON.stringify(Object.fromEntries(data)),
+      });
+      form.reset();
+      setMessage("Branch created.");
+      await loadAccess();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to create branch");
+    }
+  }
+
+  async function inviteEmployee(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const role = String(data.get("role"));
+    const roleOption = options?.roles.find((item) => item.key === role);
+    try {
+      const result = await apiRequest<{ acceptPath: string }>(
+        "/organization/invitations",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: data.get("name"),
+            email: data.get("email"),
+            role,
+            permissions: roleOption?.defaultPermissions ?? [],
+            branchIds: data.getAll("branchIds"),
+          }),
+        },
+      );
+      const link = `${window.location.origin}${result.acceptPath}`;
+      setInviteLink(link);
+      setMessage("Invitation created. Copy and send the secure link.");
+      form.reset();
+      await loadAccess();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to create invitation");
+    }
+  }
+
+  async function toggleBranch(branch: AccessBranch) {
+    try {
+      await apiRequest(`/organization/branches/${branch._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: !branch.isActive }),
+      });
+      setMessage(
+        `${branch.name} ${branch.isActive ? "deactivated" : "activated"}.`,
+      );
+      await loadAccess();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to update branch");
+    }
+  }
+
+  async function revokeInvitation(invitation: AccessInvitation) {
+    try {
+      await apiRequest(`/organization/invitations/${invitation._id}/revoke`, {
+        method: "PATCH",
+      });
+      setMessage(`Invitation for ${invitation.email} was revoked.`);
+      await loadAccess();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to revoke invitation");
+    }
+  }
+
+  async function saveMember(
+    membership: AccessMembership,
+    form: HTMLFormElement,
+  ) {
+    const data = new FormData(form);
+    const role = String(data.get("role"));
+    const selectedPermissions = data.getAll("permissions").map(String);
+    try {
+      await apiRequest(`/organization/users/${membership._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          role,
+          permissions:
+            role === "owner"
+              ? ["*"]
+              : selectedPermissions,
+          branchIds: data.getAll("branchIds"),
+          isActive: data.get("isActive") === "on",
+        }),
+      });
+      setMessage(`Access updated for ${membership.userId.name}.`);
+      await loadAccess();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to update access");
+    }
+  }
+
+  async function resetPassword(membership: AccessMembership) {
+    const password = window.prompt(
+      `Enter a temporary password for ${membership.userId.name} (minimum 8 characters)`,
+    );
+    if (!password) return;
+    try {
+      await apiRequest(`/organization/users/${membership._id}/reset-password`, {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      });
+      setMessage(`Password reset for ${membership.userId.name}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to reset password");
+    }
+  }
+
+  async function changeOwnPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    try {
+      await apiRequest("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword: data.get("currentPassword"),
+          newPassword: data.get("newPassword"),
+        }),
+      });
+      form.reset();
+      setMessage("Your password was changed successfully.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to change password");
+    }
+  }
+
+  return (
+    <section className="space-y-6">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card md:p-8">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="mt-1 text-brand-600" />
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-600">
+              Access control
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-ink">
+              Users, roles and branches
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Assign every employee the minimum access needed for their work.
+            </p>
+          </div>
+        </div>
+        {message && (
+          <div className="mt-5 rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
+            {message}
+          </div>
+        )}
+        {inviteLink && (
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="text-xs font-bold uppercase text-emerald-700">
+              Secure invitation link
+            </div>
+            <div className="mt-2 flex gap-2">
+              <input
+                readOnly
+                value={inviteLink}
+                className="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => void navigator.clipboard.writeText(inviteLink)}
+                className="rounded-lg bg-emerald-700 px-3 text-white"
+                aria-label="Copy invitation link"
+              >
+                <Copy size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <form
+          onSubmit={createBranch}
+          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"
+        >
+          <div className="flex items-center gap-2">
+            <GitBranch size={19} className="text-brand-600" />
+            <h3 className="font-black text-ink">Add branch</h3>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Input name="code" placeholder="BLR" required />
+            <Input name="name" placeholder="Bangalore office" required />
+            <Input name="phone" placeholder="Phone" />
+            <Input name="address" placeholder="Address" />
+          </div>
+          <button className="mt-4 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white">
+            Create branch
+          </button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {branches.map((branch) => (
+              <button
+                type="button"
+                key={branch._id}
+                onClick={() => void toggleBranch(branch)}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold ${branch.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
+              >
+                {branch.code} · {branch.name}
+              </button>
+            ))}
+            {!branches.length && (
+              <span className="text-sm text-slate-500">No branches created yet.</span>
+            )}
+          </div>
+        </form>
+
+        <form
+          onSubmit={inviteEmployee}
+          className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"
+        >
+          <div className="flex items-center gap-2">
+            <UserPlus size={19} className="text-brand-600" />
+            <h3 className="font-black text-ink">Invite employee</h3>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Input name="name" placeholder="Employee name" required />
+            <Input name="email" type="email" placeholder="Email" required />
+            <select
+              name="role"
+              required
+              className="rounded-xl border border-slate-300 px-4 py-3 text-sm"
+            >
+              {(options?.roles ?? []).filter((role) => role.key !== "owner").map((role) => (
+                <option key={role.key} value={role.key}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+            <div className="rounded-xl border border-slate-200 p-3">
+              <div className="mb-2 text-xs font-bold text-slate-500">Branches</div>
+              <div className="space-y-1">
+                {branches.filter((branch) => branch.isActive).map((branch) => (
+                  <label key={branch._id} className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" name="branchIds" value={branch._id} />
+                    {branch.name}
+                  </label>
+                ))}
+                {!branches.length && <span className="text-xs text-slate-400">All organization access</span>}
+              </div>
+            </div>
+          </div>
+          <button className="mt-4 rounded-xl bg-brand-600 px-4 py-3 text-sm font-bold text-white">
+            Create invitation
+          </button>
+        </form>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+        <h3 className="font-black text-ink">Team access</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Role changes take effect the next time the employee signs in.
+        </p>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {memberships.map((membership) => (
+            <form
+              key={membership._id}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveMember(membership, event.currentTarget);
+              }}
+              className="rounded-xl border border-slate-200 p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <b className="text-ink">{membership.userId.name}</b>
+                  <p className="text-xs text-slate-500">{membership.userId.email}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {membership.userId.lastLoginAt
+                      ? `Last login ${new Date(membership.userId.lastLoginAt).toLocaleString()}`
+                      : "Not signed in yet"}
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                  <input
+                    name="isActive"
+                    type="checkbox"
+                    defaultChecked={membership.isActive}
+                  />
+                  Active
+                </label>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <select
+                  name="role"
+                  defaultValue={membership.role}
+                  disabled={membership.role === "owner"}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                >
+                  {(options?.roles ?? []).map((role) => (
+                    <option key={role.key} value={role.key}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="rounded-xl border border-slate-200 p-2">
+                  {branches.map((branch) => (
+                    <label key={branch._id} className="flex items-center gap-2 py-1 text-xs">
+                      <input
+                        name="branchIds"
+                        type="checkbox"
+                        value={branch._id}
+                        defaultChecked={membership.branchIds.some(
+                          (selected) => selected._id === branch._id,
+                        )}
+                      />
+                      {branch.name}
+                    </label>
+                  ))}
+                  {!branches.length && (
+                    <span className="text-xs text-slate-400">All branches</span>
+                  )}
+                </div>
+              </div>
+              {membership.role !== "owner" && (
+                <details className="mt-3 rounded-xl bg-slate-50 p-3">
+                  <summary className="cursor-pointer text-xs font-bold text-slate-600">
+                    Custom permissions ({membership.permissions.length})
+                  </summary>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {(options?.permissions ?? []).map((permission) => (
+                      <label
+                        key={permission.key}
+                        className="flex items-start gap-2 text-xs text-slate-600"
+                      >
+                        <input
+                          type="checkbox"
+                          name="permissions"
+                          value={permission.key}
+                          defaultChecked={
+                            membership.permissions.includes("*") ||
+                            membership.permissions.includes(permission.key)
+                          }
+                        />
+                        {permission.label}
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white">
+                  Save access
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void resetPassword(membership)}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700"
+                >
+                  <KeyRound size={13} /> Reset password
+                </button>
+              </div>
+            </form>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+          <h3 className="font-black text-ink">Invitations</h3>
+          <div className="mt-4 space-y-2">
+            {invitations.slice(0, 10).map((invitation) => (
+              <div key={invitation._id} className="flex justify-between gap-3 rounded-xl bg-slate-50 p-3 text-sm">
+                <div>
+                  <b className="text-ink">{invitation.name}</b>
+                  <span className="block text-xs text-slate-500">{invitation.email} · {invitation.role}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-bold capitalize text-slate-500">{invitation.status}</span>
+                  {invitation.status === "pending" && (
+                    <button
+                      type="button"
+                      onClick={() => void revokeInvitation(invitation)}
+                      className="mt-1 block text-xs font-bold text-red-600"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {!invitations.length && <p className="text-sm text-slate-500">No invitations yet.</p>}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+          <h3 className="font-black text-ink">Activity history</h3>
+          <div className="mt-4 max-h-72 space-y-2 overflow-y-auto">
+            {activity.slice(0, 30).map((entry) => (
+              <div key={entry._id} className="border-b border-slate-100 pb-2 text-sm">
+                <b className="text-ink">{entry.description}</b>
+                <span className="mt-1 block text-xs text-slate-400">
+                  {new Date(entry.createdAt).toLocaleString()}
+                </span>
+              </div>
+            ))}
+            {!activity.length && <p className="text-sm text-slate-500">No access activity yet.</p>}
+          </div>
+        </div>
+      </div>
+
+      <form
+        onSubmit={changeOwnPassword}
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"
+      >
+        <div className="flex items-center gap-2">
+          <KeyRound size={19} className="text-brand-600" />
+          <h3 className="font-black text-ink">Change my password</h3>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Input name="currentPassword" type="password" placeholder="Current password" required />
+          <Input name="newPassword" type="password" placeholder="New password (minimum 8 characters)" minLength={8} required />
+        </div>
+        <button className="mt-4 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white">
+          Change password
+        </button>
+      </form>
+    </section>
   );
 }
 

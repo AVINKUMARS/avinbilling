@@ -9,6 +9,7 @@ type TokenPayload = {
   organizationId: string;
   role: string;
   permissions: string[];
+  branchIds?: string[];
 };
 
 export function requireAuth(request: Request, _response: Response, next: NextFunction) {
@@ -22,6 +23,7 @@ export function requireAuth(request: Request, _response: Response, next: NextFun
       organizationId: new Types.ObjectId(payload.organizationId),
       role: payload.role,
       permissions: payload.permissions,
+      branchIds: (payload.branchIds ?? []).map((id) => new Types.ObjectId(id)),
     };
     next();
   } catch {

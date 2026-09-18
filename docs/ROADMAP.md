@@ -41,3 +41,11 @@
 - Durable mutation queue for on-site work without connectivity
 - Automatic retry on reconnect with visible pending and conflict states
 - Server-side idempotency keys to prevent duplicate records during retry
+
+## Users, roles and branches (implemented)
+
+- Employee invitations with expiring single-use acceptance links
+- Owner, admin, manager, estimator, accounts, factory, installer and viewer roles
+- Custom permission and branch assignments per employee
+- Account activation, administrator password reset and self-service password change
+- Branch directory plus login and access activity history
