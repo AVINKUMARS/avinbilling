@@ -202,15 +202,15 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Gross and net project profit
 - [x] Cost approval controls
 
-### [ ] 17. Branch Data Isolation
+### [x] 17. Branch Data Isolation
 
-- [ ] Active branch selector
-- [ ] Save branch ID on new business records
-- [ ] Restrict lists and reports to permitted branches
-- [ ] Organization-wide access for owners and approved managers
+- [x] Active branch selector
+- [x] Save branch ID on new business records
+- [x] Restrict lists and reports to permitted branches
+- [x] Organization-wide access for owners and approved managers
 - [ ] Branch transfer workflow
 - [ ] Branch-specific numbering and stock warehouses
-- [ ] Automated data-isolation tests
+- [x] Automated data-isolation tests
 
 ### [ ] 18. Service and Warranty
 
