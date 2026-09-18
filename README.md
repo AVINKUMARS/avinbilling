@@ -2,6 +2,8 @@
 
 Avin Business Suite is a modular, multi-organization platform for estimates, projects, purchasing, production, installation, billing, and service. UPVC is the first industry pack; the core domain is intentionally industry-neutral.
 
+Development progress and the detailed pending-package checklist are maintained in [`docs/PACKAGE_STATUS.md`](docs/PACKAGE_STATUS.md).
+
 ## Current foundation
 
 - React, Vite, TypeScript, Tailwind CSS and Zustand web application
