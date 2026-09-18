@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { clientSchema } from '@avin/shared';
 import { Client } from '../models/client.js';
 import { requireAuth, requirePermission, tenantFilter } from '../middleware/auth.js';
+import { nextBranchNumber } from '../services/branching.js';
 
 export const clientRouter = Router();
 clientRouter.use(requireAuth);
@@ -21,12 +22,12 @@ clientRouter.get('/', async (request, response, next) => {
 clientRouter.post('/', requirePermission('clients.create'), async (request, response, next) => {
   try {
     const input = clientSchema.parse(request.body);
-    const count = await Client.countDocuments(tenantFilter(request.auth!));
+    const sequence = await nextBranchNumber(request.auth!, 'client', 'CLI');
     const client = await Client.create({
       ...input,
-      clientCode: `CLI-${String(count + 1).padStart(5, '0')}`,
+      clientCode: sequence.number,
       organizationId: request.auth!.organizationId,
-      branchId: request.auth!.activeBranchId,
+      branchId: sequence.branchId,
       createdBy: request.auth!.userId,
       updatedBy: request.auth!.userId,
     });

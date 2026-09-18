@@ -23,19 +23,26 @@ import { customizationRouter } from './routes/customization.js';
 import { costingRouter } from './routes/costing.js';
 import { serviceRouter } from './routes/service.js';
 import { crmRouter } from './routes/crm.js';
+import { branchesRouter } from './routes/branches.js';
+import { filesRouter } from './routes/files.js';
+import { securityRouter } from './routes/security.js';
+import { rateLimit } from './middleware/rate-limit.js';
+import { auditTrail } from './middleware/audit.js';
 
 export const app = express();
 app.use(helmet());
 app.use(cors({ origin: env.WEB_ORIGIN, credentials: true }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '8mb' }));
+app.use('/api/', rateLimit({ windowMs: 60_000, max: 300, keyPrefix: 'api' }));
 if (env.NODE_ENV !== 'test') app.use(pinoHttp());
 
 app.get('/', (_request, response) => response.json({ name: 'Avin Business Suite API', version: '0.1.0' }));
 app.use('/api/v1/health', healthRouter);
 app.use('/api/v1/platform', platformRouter);
-app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/auth', rateLimit({ windowMs: 15 * 60_000, max: 40, keyPrefix: 'auth' }), authRouter);
 const protectedRouter = express.Router();
 protectedRouter.use(requireAuth, idempotency);
+protectedRouter.use(auditTrail);
 protectedRouter.use('/clients', clientRouter);
 protectedRouter.use('/brands', brandRouter);
 protectedRouter.use('/projects', projectRouter);
@@ -50,6 +57,9 @@ protectedRouter.use('/customization', customizationRouter);
 protectedRouter.use('/costing', costingRouter);
 protectedRouter.use('/service', serviceRouter);
 protectedRouter.use('/crm', crmRouter);
+protectedRouter.use('/branches', branchesRouter);
+protectedRouter.use('/files', filesRouter);
+protectedRouter.use('/security', securityRouter);
 app.use('/api/v1', protectedRouter);
 
 app.use((_request, response) => response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } }));

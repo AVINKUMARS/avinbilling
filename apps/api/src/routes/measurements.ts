@@ -45,7 +45,7 @@ measurementRouter.get('/', async (request, response, next) => {
 measurementRouter.post('/', requirePermission('measurements.create'), async (request, response, next) => {
   try {
     const input = inputSchema.parse(request.body);
-    const project = await Project.findOne({ _id: input.projectId, organizationId: request.auth!.organizationId }).lean();
+    const project = await Project.findOne({ _id: input.projectId, ...tenantFilter(request.auth!) }).lean();
     if (!project) { response.status(404).json({ error: { code: 'PROJECT_NOT_FOUND', message: 'Project not found' } }); return; }
     if (input.areaLocalId && !project.areas.some((area) => area.localId === input.areaLocalId)) {
       response.status(400).json({ error: { code: 'AREA_NOT_FOUND', message: 'Selected project area was not found' } }); return;
@@ -56,7 +56,7 @@ measurementRouter.post('/', requirePermission('measurements.create'), async (req
       itemNumber: `M-${String(count + 1).padStart(4, '0')}`,
       areaSqft: Number(areaSquareFeet(input.widthMm, input.heightMm).toFixed(3)),
       organizationId: request.auth!.organizationId,
-      branchId: request.auth!.activeBranchId,
+      branchId: project.branchId,
         createdBy: request.auth!.userId,
       updatedBy: request.auth!.userId,
     });
@@ -67,7 +67,7 @@ measurementRouter.post('/', requirePermission('measurements.create'), async (req
 measurementRouter.patch('/:id', requirePermission('measurements.create'), async (request, response, next) => {
   try {
     const input = inputSchema.partial().omit({ projectId: true }).parse(request.body);
-    const existing = await MeasurementItem.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId });
+    const existing = await MeasurementItem.findOne({ _id: request.params.id, ...tenantFilter(request.auth!) });
     if (!existing) { response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Measurement not found' } }); return; }
     if (existing.status === 'locked') { response.status(409).json({ error: { code: 'LOCKED', message: 'Approved measurement cannot be changed' } }); return; }
     Object.assign(existing, input, { updatedBy: request.auth!.userId });
@@ -78,11 +78,11 @@ measurementRouter.patch('/:id', requirePermission('measurements.create'), async 
 
 measurementRouter.post('/:id/duplicate', requirePermission('measurements.create'), async (request, response, next) => {
   try {
-    const source = await MeasurementItem.findOne({ _id: request.params.id, organizationId: request.auth!.organizationId }).lean();
+    const source = await MeasurementItem.findOne({ _id: request.params.id, ...tenantFilter(request.auth!) }).lean();
     if (!source) { response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Measurement not found' } }); return; }
     const count = await MeasurementItem.countDocuments({ ...tenantFilter(request.auth!),  projectId: source.projectId });
     const { _id, createdAt, updatedAt, ...copy } = source;
-    const data = await MeasurementItem.create({ ...copy, itemNumber: `M-${String(count + 1).padStart(4, '0')}`, location: `${source.location} copy`, status: 'draft', branchId: request.auth!.activeBranchId,
+    const data = await MeasurementItem.create({ ...copy, itemNumber: `M-${String(count + 1).padStart(4, '0')}`, location: `${source.location} copy`, status: 'draft', branchId: source.branchId,
         createdBy: request.auth!.userId, updatedBy: request.auth!.userId });
     response.status(201).json({ data });
   } catch (error) { next(error); }

@@ -309,6 +309,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, user: Authenticated
     try {
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
@@ -519,6 +520,7 @@ export function App() {
 
   if (token && user) {
     return <Workspace user={user} onLogout={() => {
+      void fetch(`${apiUrl}/auth/logout`, { method: 'POST', credentials: 'include' });
       localStorage.removeItem('avin_token');
       localStorage.removeItem('avin_user');
       setToken(null);
