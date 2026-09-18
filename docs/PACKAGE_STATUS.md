@@ -13,7 +13,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ## Current priority
 
-**In progress:** Runtime Customization Integration
+**Next package:** Advanced Project Costing
 
 ## Package summary
 
@@ -33,7 +33,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 12 | Users, Roles and Branches | Completed | Invitations, permissions, branch assignment, password controls and activity history |
 | 13 | Custom Builders | Completed | Fields, forms, formulas, workflows and document-template builders |
 | 14 | Additional Industry Packs | Completed | Eight configurable packs with installers, examples, formulas and workflows |
-| 15 | Runtime Customization Integration | In progress | Use active custom definitions inside real screens, calculations and documents |
+| 15 | Runtime Customization Integration | Completed | Active fields, forms, formulas, workflows, document templates and JSON import |
 | 16 | Advanced Project Costing | Pending | Complete estimated-versus-actual job costing |
 | 17 | Branch Data Isolation | Pending | Active branch selector and branch-restricted business records |
 | 18 | Service and Warranty | Pending | Complaints, service jobs, warranty and technician visits |
@@ -179,15 +179,16 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Seed example data separately for each pack
 - [x] GitHub commit `a6b9e28`
 
-### [~] 15. Runtime Customization Integration
+### [x] 15. Runtime Customization Integration
 
-- [ ] Render active custom fields on their selected entity screens
-- [ ] Render active custom forms inside projects and measurements
-- [ ] Execute approved formulas through a safe calculation engine
-- [ ] Apply active workflows to real records
-- [ ] Use document templates in quotation, invoice and other PDFs
-- [ ] Preserve custom values in MongoDB
-- [ ] Add custom-definition import
+- [x] Render active custom fields on their selected entity screens
+- [x] Render active custom forms inside projects and measurements
+- [x] Execute approved formulas through a safe calculation engine
+- [x] Apply active workflows to real records
+- [x] Use document templates in quotation, invoice and other document endpoints
+- [x] Preserve custom values in MongoDB
+- [x] Add custom-definition import
+- [x] GitHub commit `53e571e`
 
 ### [ ] 16. Advanced Project Costing
 
@@ -290,6 +291,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 18 Sep 2026 | Users, Roles and Branches | `9a353e7` |
 | 18 Sep 2026 | Custom Builders | `36da874` |
 | 18 Sep 2026 | Additional Industry Packs | `a6b9e28` |
+| 18 Sep 2026 | Runtime Customization Integration | `53e571e` |
 
 ## How to update this file
 
