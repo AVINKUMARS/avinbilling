@@ -13,7 +13,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 
 ## Current priority
 
-**Next package:** Advanced Project Costing
+**In progress:** Branch Data Isolation
 
 ## Package summary
 
@@ -34,7 +34,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 13 | Custom Builders | Completed | Fields, forms, formulas, workflows and document-template builders |
 | 14 | Additional Industry Packs | Completed | Eight configurable packs with installers, examples, formulas and workflows |
 | 15 | Runtime Customization Integration | Completed | Active fields, forms, formulas, workflows, document templates and JSON import |
-| 16 | Advanced Project Costing | Pending | Complete estimated-versus-actual job costing |
+| 16 | Advanced Project Costing | Completed | Complete estimated-versus-actual job costing |
 | 17 | Branch Data Isolation | Pending | Active branch selector and branch-restricted business records |
 | 18 | Service and Warranty | Pending | Complaints, service jobs, warranty and technician visits |
 | 19 | CRM Leads and Follow-ups | Pending | Lead pipeline, reminders, notes and conversion tracking |
@@ -190,17 +190,17 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [x] Add custom-definition import
 - [x] GitHub commit `53e571e`
 
-### [ ] 16. Advanced Project Costing
+### [x] 16. Advanced Project Costing
 
-- [ ] Project budget
-- [ ] Labour and subcontractor costs
-- [ ] Transport, installation and site expenses
-- [ ] General and miscellaneous expenses
-- [ ] Change orders and variations
-- [ ] Material issue and return costing
-- [ ] Estimated-versus-actual comparison
-- [ ] Gross and net project profit
-- [ ] Cost approval controls
+- [x] Project budget
+- [x] Labour and subcontractor costs
+- [x] Transport, installation and site expenses
+- [x] General and miscellaneous expenses
+- [x] Change orders and variations
+- [x] Material issue and return costing
+- [x] Estimated-versus-actual comparison
+- [x] Gross and net project profit
+- [x] Cost approval controls
 
 ### [ ] 17. Branch Data Isolation
 
@@ -292,6 +292,7 @@ This is the master implementation checklist for Avin Business Suite. Update this
 | 18 Sep 2026 | Custom Builders | `36da874` |
 | 18 Sep 2026 | Additional Industry Packs | `a6b9e28` |
 | 18 Sep 2026 | Runtime Customization Integration | `53e571e` |
+| 18 Sep 2026 | Advanced Project Costing | `2dad493` |
 
 ## How to update this file
 

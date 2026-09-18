@@ -38,6 +38,7 @@ import {
   type OrganizationIndustryPack,
 } from "./IndustryPacks";
 import { RuntimeFields, RuntimeRecordFields, extractCustomValues } from "./RuntimeFields";
+import { ProjectCosting } from "./ProjectCosting";
 
 type User = { id: string; name: string; email: string };
 type Page =
@@ -54,6 +55,7 @@ type Page =
   | "finance"
   | "logistics"
   | "reports"
+  | "costing"
   | "customize"
   | "settings";
 type Customer = {
@@ -224,6 +226,7 @@ const navItems: Array<{ key: Page; label: string; icon: typeof Gauge }> = [
   { key: "finance", label: "Invoices & payments", icon: ReceiptIndianRupee },
   { key: "logistics", label: "Delivery & installation", icon: Truck },
   { key: "reports", label: "Reports", icon: BarChart3 },
+  { key: "costing", label: "Project costing", icon: CircleDollarSign },
   { key: "customize", label: "Custom builders", icon: WandSparkles },
   { key: "settings", label: "Settings", icon: Settings },
 ];
@@ -578,6 +581,7 @@ export function Workspace({
       "Schedules, dispatch and site completion",
     ],
     reports: ["Reports", "Sales, collection, purchase and stock performance"],
+    costing: ["Project costing", "Budgets, actual expenses, variations and project profit"],
     customize: [
       "Custom builders",
       "Forms, fields, formulas, workflows and documents",
@@ -833,6 +837,7 @@ export function Workspace({
               products={products}
             />
           )}
+          {page === "costing" && <ProjectCosting projects={projects} />}
           {page === "customize" && (
             <OperationsPanel
               kind="customize"
