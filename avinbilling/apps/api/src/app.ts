@@ -21,7 +21,7 @@ import { requireAuth } from './middleware/auth.js';
 import { idempotency } from './middleware/idempotency.js';
 import { customizationRouter } from './routes/customization.js';
 import { costingRouter } from './routes/costing.js';
-
+import { serviceRouter } from './routes/service.js';
 export const app = express();
 
 app.use(helmet());
@@ -47,6 +47,7 @@ protectedRouter.use('/operations', operationsRouter);
 protectedRouter.use('/organization', organizationRouter);
 protectedRouter.use('/customization', customizationRouter);
 protectedRouter.use('/costing', costingRouter);
+protectedRouter.use('/service', serviceRouter);
 app.use('/api/v1', protectedRouter);
 
 app.use((_request, response) => response.status(404).json({ error: { code: 'NOT_FOUND', message: 'Route not found' } }));

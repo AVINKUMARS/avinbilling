@@ -27,6 +27,7 @@ import {
   UserPlus,
   WandSparkles,
   X,
+  Wrench,
 } from "lucide-react";
 import { apiRequest } from "../lib/api";
 import type { QuotePdfData } from "./QuotePdf";
@@ -40,6 +41,7 @@ import {
 import { RuntimeFields, RuntimeRecordFields, extractCustomValues } from "./RuntimeFields";
 import { useAuthStore } from "../store/auth-store";
 import { ProjectCosting } from "./ProjectCosting";
+import { ServiceAndWarranty } from "./ServiceAndWarranty";
 
 type User = { id: string; name: string; email: string };
 type Page =
@@ -58,7 +60,8 @@ type Page =
   | "reports"
   | "costing"
   | "customize"
-  | "settings";
+  | "settings"
+  | "service";
 type Customer = {
   _id: string;
   clientCode: string;
@@ -229,6 +232,7 @@ const navItems: Array<{ key: Page; label: string; icon: typeof Gauge }> = [
   { key: "reports", label: "Reports", icon: BarChart3 },
   { key: "costing", label: "Project costing", icon: CircleDollarSign },
   { key: "customize", label: "Custom builders", icon: WandSparkles },
+  { key: "service", label: "Service & warranty", icon: Wrench },
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -587,6 +591,10 @@ export function Workspace({
       "Custom builders",
       "Forms, fields, formulas, workflows and documents",
     ],
+    service: [
+      "Service & warranty",
+      "Manage warranty claims and technician visits",
+    ],
   };
 
   return (
@@ -839,6 +847,7 @@ export function Workspace({
             />
           )}
           {page === "costing" && <ProjectCosting projects={projects} />}
+          {page === "service" && <ServiceAndWarranty />}
           {page === "customize" && (
             <OperationsPanel
               kind="customize"

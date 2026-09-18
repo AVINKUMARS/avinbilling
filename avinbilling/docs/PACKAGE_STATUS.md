@@ -212,16 +212,16 @@ This is the master implementation checklist for Avin Business Suite. Update this
 - [ ] Branch-specific numbering and stock warehouses
 - [x] Automated data-isolation tests
 
-### [ ] 18. Service and Warranty
+### [x] 18. Service and Warranty
 
-- [ ] Product warranty registration
-- [ ] Customer complaints
-- [ ] Service tickets
-- [ ] Technician assignment
-- [ ] Site-visit scheduling
-- [ ] Parts and service charges
-- [ ] Resolution and customer sign-off
-- [ ] Warranty-expiry reminders
+- [x] Product warranty registration
+- [x] Customer complaints
+- [x] Service tickets
+- [x] Technician assignment
+- [x] Site-visit scheduling
+- [x] Parts and service charges
+- [x] Resolution and customer sign-off
+- [x] Warranty-expiry reminders
 
 ### [ ] 19. CRM Leads and Follow-ups
 
