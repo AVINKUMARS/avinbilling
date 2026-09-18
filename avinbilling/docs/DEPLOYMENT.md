@@ -2,6 +2,8 @@
 
 The repository includes a Render Blueprint for the API and static PWA. Before deployment:
 
+The API Blueprint explicitly uses Render's `free` compute plan and the frontend is a free static site. Free API instances sleep after inactivity and have an ephemeral filesystem, so project attachments require external object storage before production use.
+
 1. Rotate the MongoDB database password that was used during development.
 2. Create a least-privilege production database user.
 3. Configure Atlas network access and automated backups.
