@@ -27,6 +27,8 @@ function canQueue(path: string) {
   );
 }
 
+const inFlightMutations = new Map<string, Promise<unknown>>();
+
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
@@ -36,6 +38,17 @@ export async function apiRequest<T>(
   const method = (options.method ?? "GET").toUpperCase();
   const isMutation = mutationMethods.has(method);
   const mutationId = isMutation ? crypto.randomUUID() : undefined;
+  
+  // Deduplicate identical concurrent mutations (prevents double-click bugs)
+  let deduplicationKey: string | null = null;
+  if (isMutation) {
+    const bodyStr = typeof options.body === 'string' ? options.body : '';
+    deduplicationKey = `${token}:${activeBranchId}:${method}:${path}:${bodyStr}`;
+    if (inFlightMutations.has(deduplicationKey)) {
+      return inFlightMutations.get(deduplicationKey) as Promise<T>;
+    }
+  }
+
   const queueCurrentMutation = async () => {
     await queueMutation({
       id: mutationId,
@@ -59,19 +72,20 @@ export async function apiRequest<T>(
     );
   }
 
-  try {
-    const requestOptions: RequestInit = {
-      ...options,
-      method,
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(activeBranchId ? { "x-active-branch": activeBranchId } : {}),
-        ...(mutationId ? { "Idempotency-Key": mutationId } : {}),
-        ...options.headers,
-      },
-    };
+  const performRequest = async (): Promise<T> => {
+    try {
+      const requestOptions: RequestInit = {
+        ...options,
+        method,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(activeBranchId ? { "x-active-branch": activeBranchId } : {}),
+          ...(mutationId ? { "Idempotency-Key": mutationId } : {}),
+          ...options.headers,
+        },
+      };
     let response = await fetch(`${apiBaseUrl}${path}`, requestOptions);
     if (response.status === 401 && !path.startsWith("/auth/")) {
       const refresh = await fetch(`${apiBaseUrl}/auth/refresh`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } });
@@ -85,13 +99,20 @@ export async function apiRequest<T>(
         }
       }
     }
-    const body = (await response.json()) as {
+    if (response.status === 204) return undefined as T;
+    const body = (await response.json().catch(() => {
+      throw new Error(`The server returned an unreadable response (${response.status}). Please try again shortly.`);
+    })) as {
       data?: T;
-      error?: { message?: string };
+      error?: { message?: string; details?: { fieldErrors?: Record<string, string[]> } };
     };
-    if (!response.ok)
-      throw new Error(body.error?.message ?? "Request failed");
-    if (!isMutation) await cacheResponse(path, body.data);
+    if (!response.ok) {
+      const fields = Object.entries(body.error?.details?.fieldErrors ?? {})
+        .map(([field, messages]) => `${field}: ${messages.join(", ")}`).join("; ");
+      throw new Error(fields || body.error?.message || "Request failed");
+    }
+    // Browser storage failures must not hide a successful server response.
+    if (!isMutation) await cacheResponse(path, body.data).catch(() => undefined);
     return body.data as T;
   } catch (error) {
     if (error instanceof TypeError) {
@@ -102,5 +123,18 @@ export async function apiRequest<T>(
       }
     }
     throw error;
+  };
+  };
+
+  if (deduplicationKey) {
+    const promise = performRequest();
+    inFlightMutations.set(deduplicationKey, promise);
+    try {
+      return await promise;
+    } finally {
+      inFlightMutations.delete(deduplicationKey);
+    }
   }
+
+  return performRequest();
 }
