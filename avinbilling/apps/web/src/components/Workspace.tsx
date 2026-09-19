@@ -35,6 +35,7 @@ import { apiRequest } from "../lib/api";
 import type { QuotePdfData } from "./QuotePdf";
 import type { InvoicePdfData } from "./InvoicePdf";
 import { ConnectivityBadge } from "./ConnectivityBadge";
+import { InstallPwaBadge } from "./InstallPwaBadge";
 import { CustomBuilders } from "./CustomBuilders";
 import {
   IndustryPackManager,
@@ -477,12 +478,18 @@ export function Workspace({
       method: "POST",
       body: JSON.stringify(Object.fromEntries(data)),
     });
-    if (created && Object.keys(values).length)
-      await apiRequest(`/customization/values/client/${created._id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ values }),
-      });
-    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
+    let patchFailed = false;
+    if (created && Object.keys(values).length) {
+      try {
+        await apiRequest(`/customization/values/client/${created._id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ values }),
+        });
+      } catch (error) {
+        patchFailed = true;
+      }
+    }
+    setNotice(patchFailed ? "Saved, but custom fields could not be saved." : (created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization."));
     setModal(null);
     await load();
   }
@@ -511,12 +518,18 @@ export function Workspace({
       method: "POST",
       body: JSON.stringify(Object.fromEntries(data)),
     });
-    if (created && Object.keys(values).length)
-      await apiRequest(`/customization/values/project/${created._id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ values }),
-      });
-    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
+    let patchFailed = false;
+    if (created && Object.keys(values).length) {
+      try {
+        await apiRequest(`/customization/values/project/${created._id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ values }),
+        });
+      } catch (error) {
+        patchFailed = true;
+      }
+    }
+    setNotice(patchFailed ? "Saved, but custom fields could not be saved." : (created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization."));
     setModal(null);
     await load();
   }
@@ -612,12 +625,18 @@ export function Workspace({
         },
       }),
     });
-    if (created && Object.keys(values).length)
-      await apiRequest(`/customization/values/measurement/${created._id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ values }),
-      });
-    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
+    let patchFailed = false;
+    if (created && Object.keys(values).length) {
+      try {
+        await apiRequest(`/customization/values/measurement/${created._id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ values }),
+        });
+      } catch (error) {
+        patchFailed = true;
+      }
+    }
+    setNotice(patchFailed ? "Saved, but custom fields could not be saved." : (created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization."));
     setModal(null);
     await load();
   }
@@ -721,6 +740,7 @@ export function Workspace({
           </div>
           <div className="flex items-center gap-3">
             <BranchSelector />
+            <InstallPwaBadge />
             <ConnectivityBadge />
             <div className="hidden text-sm font-bold text-slate-700 sm:block">
               {user.name}
