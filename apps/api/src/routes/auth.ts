@@ -32,7 +32,8 @@ async function issueSession(response: import('express').Response, request: impor
   const token = jwt.sign({ sub: user.id, organizationId: membership.organizationId.toString(), role: membership.role, permissions: membership.permissions, branchIds: membership.branchIds.map((id) => id.toString()) }, env.JWT_SECRET, { expiresIn: accessTokenAge });
   const refreshToken = randomBytes(48).toString('base64url');
   await RefreshSession.create({ userId: user._id, organizationId: membership.organizationId, tokenHash: createHash('sha256').update(refreshToken).digest('hex'), expiresAt: new Date(Date.now() + refreshMaxAge), ipAddress: request.ip, userAgent: request.get('user-agent') });
-  response.cookie('avin_refresh', refreshToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', maxAge: refreshMaxAge, path: '/api/v1/auth' });
+  const isProd = env.NODE_ENV === 'production';
+  response.cookie('avin_refresh', refreshToken, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', maxAge: refreshMaxAge, path: '/api/v1/auth' });
   return token;
 }
 

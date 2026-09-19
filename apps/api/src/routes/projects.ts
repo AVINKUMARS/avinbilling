@@ -63,6 +63,27 @@ projectRouter.post('/', requirePermission('projects.create'), async (request, re
   } catch (error) { next(error); }
 });
 
+projectRouter.patch('/:id', requirePermission('projects.update'), async (request, response, next) => {
+  try {
+    const input = projectInput.partial().parse(request.body);
+    const data = await Project.findOneAndUpdate(
+      { _id: request.params.id, ...tenantFilter(request.auth!) },
+      { ...input, updatedBy: request.auth!.userId },
+      { new: true }
+    );
+    if (!data) return response.status(404).json({ error: { message: 'Not found' } });
+    response.json({ data });
+  } catch (error) { next(error); }
+});
+
+projectRouter.delete('/:id', requirePermission('projects.update'), async (request, response, next) => {
+  try {
+    const data = await Project.findOneAndDelete({ _id: request.params.id, ...tenantFilter(request.auth!) });
+    if (!data) return response.status(404).json({ error: { message: 'Not found' } });
+    response.json({ data: { _id: request.params.id } });
+  } catch (error) { next(error); }
+});
+
 projectRouter.post('/:id/areas', requirePermission('projects.update'), async (request, response, next) => {
   try {
     const input = areaInput.parse(request.body);

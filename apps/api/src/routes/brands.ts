@@ -29,3 +29,24 @@ brandRouter.post('/', requirePermission('catalog.create'), async (request, respo
     response.status(201).json({ data });
   } catch (error) { next(error); }
 });
+
+brandRouter.patch('/:id', requirePermission('catalog.create'), async (request, response, next) => {
+  try {
+    const input = brandInput.partial().parse(request.body);
+    const data = await Brand.findOneAndUpdate(
+      { _id: request.params.id, organizationId: request.auth!.organizationId },
+      { ...input, updatedBy: request.auth!.userId },
+      { new: true }
+    );
+    if (!data) return response.status(404).json({ error: { message: 'Not found' } });
+    response.json({ data });
+  } catch (error) { next(error); }
+});
+
+brandRouter.delete('/:id', requirePermission('catalog.create'), async (request, response, next) => {
+  try {
+    const data = await Brand.findOneAndDelete({ _id: request.params.id, organizationId: request.auth!.organizationId });
+    if (!data) return response.status(404).json({ error: { message: 'Not found' } });
+    response.json({ data: { _id: request.params.id } });
+  } catch (error) { next(error); }
+});

@@ -36,3 +36,24 @@ clientRouter.post('/', requirePermission('clients.create'), async (request, resp
     next(error);
   }
 });
+
+clientRouter.patch('/:id', requirePermission('clients.create'), async (request, response, next) => {
+  try {
+    const input = clientSchema.partial().parse(request.body);
+    const client = await Client.findOneAndUpdate(
+      { _id: request.params.id, ...tenantFilter(request.auth!) },
+      { ...input, updatedBy: request.auth!.userId },
+      { new: true }
+    );
+    if (!client) return response.status(404).json({ error: { message: 'Not found' } });
+    response.json({ data: client });
+  } catch (error) { next(error); }
+});
+
+clientRouter.delete('/:id', requirePermission('clients.create'), async (request, response, next) => {
+  try {
+    const client = await Client.findOneAndDelete({ _id: request.params.id, ...tenantFilter(request.auth!) });
+    if (!client) return response.status(404).json({ error: { message: 'Not found' } });
+    response.json({ data: { _id: request.params.id } });
+  } catch (error) { next(error); }
+});
