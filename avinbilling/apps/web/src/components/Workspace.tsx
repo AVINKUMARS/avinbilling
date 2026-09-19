@@ -378,6 +378,7 @@ export function Workspace({
     | "measurement"
     | null
   >(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
   const [summary, setSummary] = useState<Summary>({
     customers: 0,
     projects: 0,
@@ -469,6 +470,47 @@ export function Workspace({
     window.addEventListener("avin:data-synced", reloadAfterSync);
     return () => window.removeEventListener("avin:data-synced", reloadAfterSync);
   }, [load]);
+
+
+  async function deleteCustomer(id: string) {
+    if (!window.confirm("Are you sure you want to delete this customer?")) return;
+    try {
+      await apiRequest(`/clients/${id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete");
+    }
+  }
+
+  async function deleteBrand(id: string) {
+    if (!window.confirm("Are you sure you want to delete this brand?")) return;
+    try {
+      await apiRequest(`/brands/${id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete");
+    }
+  }
+
+  async function deleteProduct(id: string) {
+    if (!window.confirm("Are you sure you want to delete this product?")) return;
+    try {
+      await apiRequest(`/catalog/items/${id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete");
+    }
+  }
+
+  async function deleteProject(id: string) {
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    try {
+      await apiRequest(`/projects/${id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete");
+    }
+  }
 
   async function createCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -828,7 +870,7 @@ export function Workspace({
           {page === "crm" && <CrmDashboard />}
           {page === "customers" && (
             <Table
-              headers={["Code", "Customer", "Phone", "Site"]}
+              headers={["Code", "Customer", "Phone", "Site", "Actions"]}
               rows={customers.map((item) => [
                 item.clientCode,
                 item.name,
@@ -840,7 +882,7 @@ export function Workspace({
           )}
           {page === "brands" && (
             <Table
-              headers={["Code", "Brand", "Company", "Category"]}
+              headers={["Code", "Brand", "Company", "Category", "Actions"]}
               rows={brands.map((item) => [
                 item.code,
                 item.name,
@@ -852,7 +894,7 @@ export function Workspace({
           )}
           {page === "products" && (
             <Table
-              headers={["Code", "Product", "Category", "Type", "Unit", "Brand"]}
+              headers={["Code", "Product", "Category", "Type", "Unit", "Brand", "Actions"]}
               rows={products.map((item) => [
                 item.code,
                 item.name,
@@ -1910,7 +1952,7 @@ function Table({
   empty,
 }: {
   headers: string[];
-  rows: string[][];
+  rows: React.ReactNode[][];
   empty: string;
 }) {
   return (
