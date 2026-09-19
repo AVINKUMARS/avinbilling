@@ -876,6 +876,10 @@ export function Workspace({
                 item.name,
                 item.phone,
                 item.siteAddress || "—",
+                <div key="actions" className="flex items-center gap-4">
+                  <button onClick={() => setEditingItem({ type: "client", item })} className="text-slate-400 transition hover:text-brand-600"><Edit size={16} /></button>
+                  <button onClick={() => void deleteCustomer(item._id)} className="text-slate-400 transition hover:text-red-600"><Trash2 size={16} /></button>
+                </div>,
               ])}
               empty="No customers yet. Add the first customer to begin a project."
             />
@@ -888,6 +892,10 @@ export function Workspace({
                 item.name,
                 item.companyName || "—",
                 item.categories.join(", ") || "—",
+                <div key="actions" className="flex items-center gap-4">
+                  <button onClick={() => setEditingItem({ type: "brand", item })} className="text-slate-400 transition hover:text-brand-600"><Edit size={16} /></button>
+                  <button onClick={() => void deleteBrand(item._id)} className="text-slate-400 transition hover:text-red-600"><Trash2 size={16} /></button>
+                </div>,
               ])}
               empty="No brands yet. Add UPVC, hardware, glass or board brands."
             />
@@ -902,6 +910,10 @@ export function Workspace({
                 item.itemType,
                 item.unit,
                 item.brandId?.name || "Generic",
+                <div key="actions" className="flex items-center gap-4">
+                  <button onClick={() => setEditingItem({ type: "catalog", item })} className="text-slate-400 transition hover:text-brand-600"><Edit size={16} /></button>
+                  <button onClick={() => void deleteProduct(item._id)} className="text-slate-400 transition hover:text-red-600"><Trash2 size={16} /></button>
+                </div>,
               ])}
               empty="No products yet. Add profiles, glass, hardware, labour or services."
             />
@@ -926,6 +938,10 @@ export function Workspace({
                 item.projectType,
                 `${item.areas?.length ?? 0} areas`,
                 item.status,
+                <div key="actions" className="flex items-center gap-4">
+                  <button onClick={() => setEditingItem({ type: "project", item })} className="text-slate-400 transition hover:text-brand-600"><Edit size={16} /></button>
+                  <button onClick={() => void deleteProject(item._id)} className="text-slate-400 transition hover:text-red-600"><Trash2 size={16} /></button>
+                </div>,
               ])}
               empty="No projects yet. Add a customer first, then create a project."
             />
