@@ -1,3 +1,4 @@
+import { SaveForm } from './SaveForm';
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   Archive,
@@ -310,7 +311,7 @@ export function CustomBuilders() {
       )}
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_.85fr]">
-        <form onSubmit={save} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card">
+        <SaveForm onSubmit={save} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-brand-600">Visual builder</p>
@@ -383,7 +384,7 @@ export function CustomBuilders() {
           )}
 
           <button disabled={busy} className="mt-6 flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 font-bold text-white disabled:opacity-50"><Plus size={17} />{editingId ? "Update draft" : "Save draft"}</button>
-        </form>
+        </SaveForm>
 
         <section className="rounded-3xl border border-slate-200 bg-slate-950 p-6 text-white shadow-card">
           <div className="flex items-center gap-2 text-emerald-300"><Play size={17} /><span className="text-xs font-bold uppercase tracking-wider">Live preview</span></div>

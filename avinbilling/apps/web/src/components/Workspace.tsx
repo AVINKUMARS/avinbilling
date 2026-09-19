@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   BarChart3,
   Building2,
@@ -48,6 +48,7 @@ import { CrmDashboard } from "./CrmDashboard";
 import { BranchAdministration } from "./BranchAdministration";
 import { FilesNotifications } from "./FilesNotifications";
 import { SecurityCenter } from "./SecurityCenter";
+import { SaveForm } from "./SaveForm";
 
 type User = { id: string; name: string; email: string };
 type Page =
@@ -320,12 +321,30 @@ function Modal({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const panel = dialog.current;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panel?.querySelector<HTMLElement>("input, select, textarea, button")?.focus();
+    return () => { document.body.style.overflow = overflow; previous?.focus(); };
+  }, []);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-3xl bg-white p-6 shadow-2xl md:p-8">
+      <div ref={dialog} role="dialog" aria-modal="true" aria-label={title} onKeyDown={(event) => {
+        if (event.key === "Escape" && !dialog.current?.querySelector('[aria-busy="true"]')) { event.stopPropagation(); onClose(); }
+        if (event.key !== "Tab") return;
+        const controls = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]') ?? []).filter(el => el.getAttribute('type') !== 'hidden');
+        const first = controls[0], last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }} className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-3xl bg-white p-6 shadow-2xl md:p-8">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-black text-ink">{title}</h2>
           <button
+            type="button"
+            aria-label="Close form"
             onClick={onClose}
             className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-600"
           >
@@ -376,6 +395,13 @@ export function Workspace({
     OrganizationIndustryPack[]
   >([]);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(""), 6000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     const cached = localStorage.getItem("avin_theme");
@@ -404,7 +430,7 @@ export function Workspace({
         nextMeasurements,
         nextQuotes,
         nextIndustryPacks,
-      ] = await Promise.all([
+      ] = await Promise.allSettled([
         apiRequest<Summary>("/dashboard/summary"),
         apiRequest<Customer[]>("/clients"),
         apiRequest<Brand[]>("/brands"),
@@ -415,15 +441,17 @@ export function Workspace({
         apiRequest<QuotePdfData[]>("/quotes"),
         apiRequest<OrganizationIndustryPack[]>("/organization/industry-packs"),
       ]);
-      setSummary(nextSummary);
-      setCustomers(nextCustomers);
-      setBrands(nextBrands);
-      setProjects(nextProjects);
-      setProducts(nextProducts);
-      setRateCards(nextRateCards);
-      setMeasurements(nextMeasurements);
-      setQuotes(nextQuotes);
-      setIndustryPacks(nextIndustryPacks);
+      if (nextSummary.status === "fulfilled") setSummary(nextSummary.value);
+      if (nextCustomers.status === "fulfilled") setCustomers(nextCustomers.value);
+      if (nextBrands.status === "fulfilled") setBrands(nextBrands.value);
+      if (nextProjects.status === "fulfilled") setProjects(nextProjects.value);
+      if (nextProducts.status === "fulfilled") setProducts(nextProducts.value);
+      if (nextRateCards.status === "fulfilled") setRateCards(nextRateCards.value);
+      if (nextMeasurements.status === "fulfilled") setMeasurements(nextMeasurements.value);
+      if (nextQuotes.status === "fulfilled") setQuotes(nextQuotes.value);
+      if (nextIndustryPacks.status === "fulfilled") setIndustryPacks(nextIndustryPacks.value);
+      const failed = [nextSummary, nextCustomers, nextBrands, nextProjects, nextProducts, nextRateCards, nextMeasurements, nextQuotes, nextIndustryPacks].find(result => result.status === "rejected");
+      if (failed?.status === "rejected") setError(`Some information could not be refreshed: ${failed.reason instanceof Error ? failed.reason.message : "Please try again."}`);
     } catch (problem) {
       setError(
         problem instanceof Error ? problem.message : "Unable to load workspace",
@@ -444,23 +472,24 @@ export function Workspace({
   async function createCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const values = extractCustomValues(event.currentTarget);
     const created = await apiRequest<{ _id: string }>("/clients", {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(data)),
     });
-    const values = extractCustomValues(event.currentTarget);
-    if (Object.keys(values).length)
+    if (created && Object.keys(values).length)
       await apiRequest(`/customization/values/client/${created._id}`, {
         method: "PATCH",
         body: JSON.stringify({ values }),
       });
+    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
     setModal(null);
     await load();
   }
   async function createBrand(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await apiRequest("/brands", {
+    const created = await apiRequest("/brands", {
       method: "POST",
       body: JSON.stringify({
         name: data.get("name"),
@@ -470,39 +499,42 @@ export function Workspace({
         categories: ["upvc"],
       }),
     });
+    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
     setModal(null);
     await load();
   }
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const values = extractCustomValues(event.currentTarget);
     const created = await apiRequest<{ _id: string }>("/projects", {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(data)),
     });
-    const values = extractCustomValues(event.currentTarget);
-    if (Object.keys(values).length)
+    if (created && Object.keys(values).length)
       await apiRequest(`/customization/values/project/${created._id}`, {
         method: "PATCH",
         body: JSON.stringify({ values }),
       });
+    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
     setModal(null);
     await load();
   }
   async function createProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await apiRequest("/catalog/items", {
+    const created = await apiRequest("/catalog/items", {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(data)),
     });
+    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
     setModal(null);
     await load();
   }
   async function createRateCard(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await apiRequest("/catalog/rate-cards", {
+    const created = await apiRequest("/catalog/rate-cards", {
       method: "POST",
       body: JSON.stringify({
         name: data.get("name"),
@@ -521,6 +553,7 @@ export function Workspace({
         ],
       }),
     });
+    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
     setModal(null);
     await load();
   }
@@ -528,7 +561,7 @@ export function Workspace({
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const projectId = String(data.get("projectId"));
-    await apiRequest(`/projects/${projectId}/areas`, {
+    const created = await apiRequest(`/projects/${projectId}/areas`, {
       method: "POST",
       body: JSON.stringify({
         name: data.get("name"),
@@ -536,12 +569,14 @@ export function Workspace({
         parentLocalId: data.get("parentLocalId") || undefined,
       }),
     });
+    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
     setModal(null);
     await load();
   }
   async function createMeasurement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const values = extractCustomValues(event.currentTarget);
     const unit = String(data.get("inputUnit"));
     const factor = unit === "inch" ? 25.4 : unit === "ft" ? 304.8 : 1;
     const created = await apiRequest<{ _id: string }>("/measurements", {
@@ -577,12 +612,12 @@ export function Workspace({
         },
       }),
     });
-    const values = extractCustomValues(event.currentTarget);
-    if (Object.keys(values).length)
+    if (created && Object.keys(values).length)
       await apiRequest(`/customization/values/measurement/${created._id}`, {
         method: "PATCH",
         body: JSON.stringify({ values }),
       });
+    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync — it will appear in the list after synchronization.");
     setModal(null);
     await load();
   }
@@ -676,6 +711,7 @@ export function Workspace({
         <header className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 lg:px-8">
           <button
             onClick={() => setMenuOpen(true)}
+            aria-label="Open navigation"
             className="grid size-10 place-items-center rounded-xl border border-slate-200 lg:hidden"
           >
             <Menu size={19} />
@@ -897,9 +933,10 @@ export function Workspace({
           )}
         </div>
       </section>
+      {notice && <div role="status" className="fixed bottom-6 right-6 z-[60] max-w-sm rounded-xl bg-emerald-800 p-4 text-white shadow-xl">{notice}<button type="button" aria-label="Dismiss notification" className="ml-4" onClick={() => setNotice("")}>×</button></div>}
       {modal === "customer" && (
         <Modal title="Add customer" onClose={() => setModal(null)}>
-          <form onSubmit={createCustomer} className="mt-6 space-y-4">
+<SaveForm onSubmit={createCustomer} className="mt-6 space-y-4">
             <Field label="Customer name">
               <Input name="name" required />
             </Field>
@@ -914,14 +951,14 @@ export function Workspace({
             <Field label="Site address">
               <Input name="siteAddress" />
             </Field>
-            <RuntimeFields entity="project" />
+            <RuntimeFields entity="client" />
             <Submit />
-          </form>
+          </SaveForm>
         </Modal>
       )}
       {modal === "brand" && (
         <Modal title="Add brand" onClose={() => setModal(null)}>
-          <form onSubmit={createBrand} className="mt-6 space-y-4">
+<SaveForm onSubmit={createBrand} className="mt-6 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Brand name">
                 <Input name="name" required />
@@ -934,12 +971,12 @@ export function Workspace({
               <Input name="companyName" />
             </Field>
             <Submit />
-          </form>
+          </SaveForm>
         </Modal>
       )}
       {modal === "product" && (
         <Modal title="Add product or material" onClose={() => setModal(null)}>
-          <form onSubmit={createProduct} className="mt-6 space-y-4">
+<SaveForm onSubmit={createProduct} className="mt-6 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Name">
                 <Input name="name" required />
@@ -999,7 +1036,7 @@ export function Workspace({
               </Field>
             </div>
             <Submit />
-          </form>
+          </SaveForm>
         </Modal>
       )}
       {modal === "rate" && (
@@ -1010,6 +1047,7 @@ export function Workspace({
           <RateCardForm
             products={products}
             onSaved={async () => {
+              setNotice("Rate card saved successfully.");
               setModal(null);
               await load();
             }}
@@ -1018,7 +1056,7 @@ export function Workspace({
       )}
       {modal === "project" && (
         <Modal title="Create project" onClose={() => setModal(null)}>
-          <form onSubmit={createProject} className="mt-6 space-y-4">
+<SaveForm onSubmit={createProject} className="mt-6 space-y-4">
             <Field label="Project name">
               <Input name="name" required />
             </Field>
@@ -1050,9 +1088,9 @@ export function Workspace({
             <Field label="Site address">
               <Input name="siteAddress" />
             </Field>
-            <RuntimeFields entity="client" />
+            <RuntimeFields entity="project" />
             <Submit />
-          </form>
+          </SaveForm>
         </Modal>
       )}
       {modal === "area" && (
@@ -1060,7 +1098,7 @@ export function Workspace({
           title="Add building, floor or room"
           onClose={() => setModal(null)}
         >
-          <form onSubmit={createArea} className="mt-6 space-y-4">
+<SaveForm onSubmit={createArea} className="mt-6 space-y-4">
             <Field label="Project">
               <select
                 name="projectId"
@@ -1117,12 +1155,12 @@ export function Workspace({
               rooms under each floor.
             </p>
             <Submit />
-          </form>
+          </SaveForm>
         </Modal>
       )}
       {modal === "measurement" && (
         <Modal title="Add detailed measurement" onClose={() => setModal(null)}>
-          <form onSubmit={createMeasurement} className="mt-6 space-y-4">
+<SaveForm onSubmit={createMeasurement} className="mt-6 space-y-4">
             <Field label="Project">
               <select
                 name="projectId"
@@ -1353,7 +1391,7 @@ export function Workspace({
             </Field>
             <RuntimeFields entity="measurement" />
             <Submit />
-          </form>
+          </SaveForm>
         </Modal>
       )}
     </main>
@@ -1943,7 +1981,7 @@ function Dashboard({
           className="rounded-2xl bg-slate-900 p-6 text-left text-white"
         >
           <Users />
-          <h2 className="mt-6 text-xl font-black">Add your first customer</h2>
+          <h2 className="mt-6 text-xl font-black">{summary.customers ? "Manage customers" : "Add your first customer"}</h2>
           <p className="mt-2 text-sm text-slate-300">
             Create the client record used by projects, quotations and invoices.
           </p>
