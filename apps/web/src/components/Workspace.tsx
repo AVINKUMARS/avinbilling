@@ -4,6 +4,7 @@ import {
   Building2,
   CircleDollarSign,
   Copy,
+  Edit,
   Factory,
   FolderArchive,
   FileText,
