@@ -2113,9 +2113,68 @@ type OrganizationSettings = {
   };
   theme: ThemeSettings;
 };
+function SettingsModules() {
+  const [modules, setModules] = useState([
+    { id: "crm", title: "CRM & Customers", desc: "Manage client database and interactions", installed: true, icon: Users },
+    { id: "purchasing", title: "Purchasing", desc: "Purchase orders and vendor management", installed: true, icon: ShoppingCart },
+    { id: "production", title: "Production", desc: "Factory operations and batch tracking", installed: false, icon: Factory },
+    { id: "finance", title: "Finance & Invoicing", desc: "Generate invoices, receipts, and track payments", installed: true, icon: ReceiptIndianRupee },
+    { id: "logistics", title: "Logistics", desc: "Delivery and installation scheduling", installed: false, icon: Truck },
+    { id: "service", title: "Service & Warranty", desc: "Ticket management and warranty claims", installed: false, icon: Wrench },
+  ]);
+  const [loading, setLoading] = useState<string | null>(null);
+
+  const toggle = (id: string) => {
+    setLoading(id);
+    setTimeout(() => {
+      setModules((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, installed: !m.installed } : m))
+      );
+      setLoading(null);
+    }, 800);
+  };
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {modules.map((mod) => (
+        <div
+          key={mod.id}
+          className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 shadow-card transition-all hover:border-brand-300 md:p-6"
+        >
+          <div className="flex items-center gap-4">
+            <div className={`flex size-12 shrink-0 items-center justify-center rounded-2xl ${mod.installed ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+              <mod.icon size={24} />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-ink">{mod.title}</h3>
+              <p className="text-sm text-slate-500">{mod.desc}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => toggle(mod.id)}
+            disabled={loading === mod.id}
+            className={`relative flex h-10 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-bold transition-all duration-300 ${mod.installed ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+          >
+            {loading === mod.id ? (
+              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : mod.installed ? (
+              <span className="flex items-center gap-1.5"><ShieldCheck size={16} /> Installed</span>
+            ) : (
+              <span className="flex items-center gap-1.5"><Plus size={16} /> Install</span>
+            )}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SettingsPage({ brands }: { brands: number }) {
+  const [activeTab, setActiveTab] = useState<"organization" | "appearance" | "modules" | "packs" | "access">("organization");
   const [settings, setSettings] = useState<OrganizationSettings | null>(null);
   const [message, setMessage] = useState("");
+
   useEffect(() => {
     apiRequest<OrganizationSettings>("/organization/settings")
       .then(setSettings)
@@ -2123,50 +2182,51 @@ function SettingsPage({ brands }: { brands: number }) {
         setMessage(e instanceof Error ? e.message : "Unable to load settings"),
       );
   }, []);
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const input: OrganizationSettings = {
       companyProfile: {
-        legalName: String(data.get("legalName")),
-        tradeName: String(data.get("tradeName")),
-        proprietorName: String(data.get("proprietorName")),
-        address: String(data.get("address")),
-        city: String(data.get("city")),
-        state: String(data.get("state")),
-        postalCode: String(data.get("postalCode")),
-        phones: String(data.get("phones"))
+        legalName: String(data.get("legalName") || settings?.companyProfile.legalName || ""),
+        tradeName: String(data.get("tradeName") || settings?.companyProfile.tradeName || ""),
+        proprietorName: String(data.get("proprietorName") || settings?.companyProfile.proprietorName || ""),
+        address: String(data.get("address") || settings?.companyProfile.address || ""),
+        city: String(data.get("city") || settings?.companyProfile.city || ""),
+        state: String(data.get("state") || settings?.companyProfile.state || ""),
+        postalCode: String(data.get("postalCode") || settings?.companyProfile.postalCode || ""),
+        phones: String(data.get("phones") || settings?.companyProfile.phones?.join(", ") || "")
           .split(",")
           .map((v) => v.trim())
           .filter(Boolean),
-        email: String(data.get("email")),
-        gstin: String(data.get("gstin")),
-        pan: String(data.get("pan")),
-        bankName: String(data.get("bankName")),
-        accountNumber: String(data.get("accountNumber")),
-        ifsc: String(data.get("ifsc")),
-        upiId: String(data.get("upiId")),
+        email: String(data.get("email") || settings?.companyProfile.email || ""),
+        gstin: String(data.get("gstin") || settings?.companyProfile.gstin || ""),
+        pan: String(data.get("pan") || settings?.companyProfile.pan || ""),
+        bankName: String(data.get("bankName") || settings?.companyProfile.bankName || ""),
+        accountNumber: String(data.get("accountNumber") || settings?.companyProfile.accountNumber || ""),
+        ifsc: String(data.get("ifsc") || settings?.companyProfile.ifsc || ""),
+        upiId: String(data.get("upiId") || settings?.companyProfile.upiId || ""),
       },
       documents: {
-        quotationTitle: String(data.get("quotationTitle")),
-        invoiceTitle: String(data.get("invoiceTitle")),
-        productTagline: String(data.get("productTagline")),
-        deliveryTerms: String(data.get("deliveryTerms")),
-        paymentTerms: String(data.get("paymentTerms")),
-        warrantyTerms: String(data.get("warrantyTerms")),
-        footerText: String(data.get("footerText")),
-        authorisedSignatory: String(data.get("authorisedSignatory")),
-        primaryColor: String(data.get("primaryColor")),
-        showGst: data.get("showGst") === "on",
+        quotationTitle: String(data.get("quotationTitle") || settings?.documents.quotationTitle || ""),
+        invoiceTitle: String(data.get("invoiceTitle") || settings?.documents.invoiceTitle || ""),
+        productTagline: String(data.get("productTagline") || settings?.documents.productTagline || ""),
+        deliveryTerms: String(data.get("deliveryTerms") || settings?.documents.deliveryTerms || ""),
+        paymentTerms: String(data.get("paymentTerms") || settings?.documents.paymentTerms || ""),
+        warrantyTerms: String(data.get("warrantyTerms") || settings?.documents.warrantyTerms || ""),
+        footerText: String(data.get("footerText") || settings?.documents.footerText || ""),
+        authorisedSignatory: String(data.get("authorisedSignatory") || settings?.documents.authorisedSignatory || ""),
+        primaryColor: String(data.get("primaryColor") || settings?.documents.primaryColor || ""),
+        showGst: data.has("showGst") ? data.get("showGst") === "on" : (settings?.documents.showGst ?? false),
       },
       theme: {
-        primaryColor: String(data.get("themePrimaryColor")),
-        sidebarColor: String(data.get("sidebarColor")),
-        backgroundColor: String(data.get("backgroundColor")),
-        surfaceColor: String(data.get("surfaceColor")),
-        borderRadius: data.get("borderRadius") as ThemeSettings["borderRadius"],
-        density: data.get("density") as ThemeSettings["density"],
-        fontFamily: data.get("fontFamily") as ThemeSettings["fontFamily"],
+        primaryColor: String(data.get("themePrimaryColor") || settings?.theme.primaryColor || ""),
+        sidebarColor: String(data.get("sidebarColor") || settings?.theme.sidebarColor || ""),
+        backgroundColor: String(data.get("backgroundColor") || settings?.theme.backgroundColor || ""),
+        surfaceColor: String(data.get("surfaceColor") || settings?.theme.surfaceColor || ""),
+        borderRadius: (data.get("borderRadius") || settings?.theme.borderRadius) as ThemeSettings["borderRadius"],
+        density: (data.get("density") || settings?.theme.density) as ThemeSettings["density"],
+        fontFamily: (data.get("fontFamily") || settings?.theme.fontFamily) as ThemeSettings["fontFamily"],
       },
     };
     try {
@@ -2181,6 +2241,7 @@ function SettingsPage({ brands }: { brands: number }) {
       setMessage(e instanceof Error ? e.message : "Unable to save");
     }
   }
+
   if (!settings)
     return (
       <div className="mt-7 rounded-2xl bg-white p-8 text-sm text-slate-500">
@@ -2190,216 +2251,166 @@ function SettingsPage({ brands }: { brands: number }) {
   const p = settings.companyProfile;
   const d = settings.documents;
   const t = settings.theme;
+
+  const tabs: Array<{ id: typeof activeTab; label: string }> = [
+    { id: "organization", label: "Organization" },
+    { id: "appearance", label: "Appearance" },
+    { id: "modules", label: "Modules" },
+    { id: "packs", label: "Industry Packs" },
+    { id: "access", label: "Users & Roles" },
+  ];
+
   return (
-    <div className="mt-7 space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[
-          ["Organization", "Editable company, GST, bank and document details"],
-          ["Modules", "Enable business capabilities and dependencies"],
-          ["Industry packs", `Business-specific defaults · ${brands} brands configured`],
-          ["Users & roles", "Permissions for office, factory and installation"],
-          ["Number sequences", "Quotation, order and invoice numbering"],
-          ["Audit history", "Protected record of important changes"],
-        ].map(([title, text]) => (
-          <article
-            key={title}
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"
+    <div className="mt-7">
+      <div className="mb-8 flex flex-wrap gap-2 rounded-2xl bg-white p-2 shadow-card">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`rounded-xl px-5 py-3 text-sm font-bold transition-all ${activeTab === tab.id ? "bg-brand-50 text-brand-700" : "text-slate-500 hover:bg-slate-50 hover:text-ink"}`}
           >
-            <h3 className="font-black text-ink">{title}</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
-          </article>
+            {tab.label}
+          </button>
         ))}
       </div>
-      <IndustryPackManager />
-      <form
-        onSubmit={save}
-        className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card md:p-8"
-      >
-        <div className="mb-6">
-          <p className="text-xs font-bold uppercase tracking-wider text-brand-600">
-            Appearance
-          </p>
-          <h2 className="mt-1 text-2xl font-black text-ink">Software theme</h2>
-          <p className="mt-2 text-sm text-slate-500">
-            Customize colours, spacing, corners and typography for this
-            organization.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Field label="Action colour">
-            <Input
-              name="themePrimaryColor"
-              type="color"
-              defaultValue={t.primaryColor}
-            />
-          </Field>
-          <Field label="Sidebar colour">
-            <Input
-              name="sidebarColor"
-              type="color"
-              defaultValue={t.sidebarColor}
-            />
-          </Field>
-          <Field label="Page background">
-            <Input
-              name="backgroundColor"
-              type="color"
-              defaultValue={t.backgroundColor}
-            />
-          </Field>
-          <Field label="Card background">
-            <Input
-              name="surfaceColor"
-              type="color"
-              defaultValue={t.surfaceColor}
-            />
-          </Field>
-          <Field label="Corner style">
-            <select
-              name="borderRadius"
-              defaultValue={t.borderRadius}
-              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3"
-            >
-              <option value="compact">Compact</option>
-              <option value="rounded">Rounded</option>
-              <option value="soft">Extra soft</option>
-            </select>
-          </Field>
-          <Field label="Layout density">
-            <select
-              name="density"
-              defaultValue={t.density}
-              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3"
-            >
-              <option value="comfortable">Comfortable</option>
-              <option value="compact">Compact</option>
-            </select>
-          </Field>
-          <Field label="Font style">
-            <select
-              name="fontFamily"
-              defaultValue={t.fontFamily}
-              className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3"
-            >
-              <option value="system">System</option>
-              <option value="modern">Modern</option>
-              <option value="classic">Classic</option>
-            </select>
-          </Field>
-        </div>
-        <div className="my-8 border-t border-slate-200" />
-        <div className="mb-6">
-          <p className="text-xs font-bold uppercase tracking-wider text-brand-600">
-            Based on the supplied examples
-          </p>
-          <h2 className="mt-1 text-2xl font-black text-ink">
-            Company and document settings
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">
-            Every value below is editable. Verify GST and legal information
-            before issuing documents.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Legal name">
-            <Input name="legalName" defaultValue={p.legalName} required />
-          </Field>
-          <Field label="Trade name">
-            <Input name="tradeName" defaultValue={p.tradeName} />
-          </Field>
-          <Field label="Proprietor / signatory">
-            <Input name="proprietorName" defaultValue={p.proprietorName} />
-          </Field>
-          <Field label="Phone numbers, comma separated">
-            <Input name="phones" defaultValue={p.phones.join(", ")} />
-          </Field>
-          <Field label="Address">
-            <Input name="address" defaultValue={p.address} />
-          </Field>
-          <Field label="City">
-            <Input name="city" defaultValue={p.city} />
-          </Field>
-          <Field label="State">
-            <Input name="state" defaultValue={p.state} />
-          </Field>
-          <Field label="Postal code">
-            <Input name="postalCode" defaultValue={p.postalCode} />
-          </Field>
-          <Field label="Email">
-            <Input name="email" type="email" defaultValue={p.email} />
-          </Field>
-          <Field label="GSTIN">
-            <Input name="gstin" defaultValue={p.gstin} />
-          </Field>
-          <Field label="PAN">
-            <Input name="pan" defaultValue={p.pan} />
-          </Field>
-          <Field label="UPI ID">
-            <Input name="upiId" defaultValue={p.upiId} />
-          </Field>
-          <Field label="Bank name">
-            <Input name="bankName" defaultValue={p.bankName} />
-          </Field>
-          <Field label="Account number">
-            <Input name="accountNumber" defaultValue={p.accountNumber} />
-          </Field>
-          <Field label="IFSC">
-            <Input name="ifsc" defaultValue={p.ifsc} />
-          </Field>
-          <Field label="Document colour">
-            <Input
-              name="primaryColor"
-              type="color"
-              defaultValue={d.primaryColor}
-            />
-          </Field>
-          <Field label="Quotation title">
-            <Input name="quotationTitle" defaultValue={d.quotationTitle} />
-          </Field>
-          <Field label="Invoice title">
-            <Input name="invoiceTitle" defaultValue={d.invoiceTitle} />
-          </Field>
-          <Field label="Product tagline">
-            <Input name="productTagline" defaultValue={d.productTagline} />
-          </Field>
-          <Field label="Authorised signatory">
-            <Input
-              name="authorisedSignatory"
-              defaultValue={d.authorisedSignatory}
-            />
-          </Field>
-          <Field label="Delivery terms">
-            <Input name="deliveryTerms" defaultValue={d.deliveryTerms} />
-          </Field>
-          <Field label="Payment terms">
-            <Input name="paymentTerms" defaultValue={d.paymentTerms} />
-          </Field>
-          <Field label="Warranty terms">
-            <Input name="warrantyTerms" defaultValue={d.warrantyTerms} />
-          </Field>
-          <Field label="Footer text">
-            <Input name="footerText" defaultValue={d.footerText} />
-          </Field>
-        </div>
-        <label className="mt-5 flex items-center gap-3 text-sm font-bold text-slate-700">
-          <input
-            name="showGst"
-            type="checkbox"
-            defaultChecked={d.showGst}
-            className="size-4 accent-teal-700"
-          />{" "}
-          Show GST on documents
-        </label>
-        {message && (
-          <div className="mt-5 rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
-            {message}
-          </div>
+
+      <div className="space-y-6">
+        {activeTab === "modules" && (
+          <section>
+            <div className="mb-6">
+              <h2 className="text-2xl font-black text-ink">Software Modules</h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Install or uninstall business capabilities and dependencies.
+              </p>
+            </div>
+            <SettingsModules />
+          </section>
         )}
-        <button className="mt-6 rounded-xl bg-brand-600 px-6 py-3.5 font-bold text-white">
-          Save settings and apply theme
-        </button>
-      </form>
-      <AccessManagement />
+
+        {activeTab === "packs" && (
+          <section>
+            <IndustryPackManager />
+          </section>
+        )}
+
+        {activeTab === "access" && (
+          <section>
+            <AccessManagement />
+          </section>
+        )}
+
+        {(activeTab === "organization" || activeTab === "appearance") && (
+          <form
+            onSubmit={save}
+            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card md:p-8"
+          >
+            {activeTab === "appearance" && (
+              <>
+                <div className="mb-6">
+                  <p className="text-xs font-bold uppercase tracking-wider text-brand-600">
+                    Appearance
+                  </p>
+                  <h2 className="mt-1 text-2xl font-black text-ink">Software theme</h2>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Customize colours, spacing, corners and typography for this
+                    organization.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <Field label="Action colour">
+                    <Input name="themePrimaryColor" type="color" defaultValue={t.primaryColor} />
+                  </Field>
+                  <Field label="Sidebar colour">
+                    <Input name="sidebarColor" type="color" defaultValue={t.sidebarColor} />
+                  </Field>
+                  <Field label="Page background">
+                    <Input name="backgroundColor" type="color" defaultValue={t.backgroundColor} />
+                  </Field>
+                  <Field label="Card background">
+                    <Input name="surfaceColor" type="color" defaultValue={t.surfaceColor} />
+                  </Field>
+                  <Field label="Corner style">
+                    <select name="borderRadius" defaultValue={t.borderRadius} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3">
+                      <option value="compact">Compact</option>
+                      <option value="rounded">Rounded</option>
+                      <option value="soft">Extra soft</option>
+                    </select>
+                  </Field>
+                  <Field label="Layout density">
+                    <select name="density" defaultValue={t.density} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3">
+                      <option value="comfortable">Comfortable</option>
+                      <option value="compact">Compact</option>
+                    </select>
+                  </Field>
+                  <Field label="Font style">
+                    <select name="fontFamily" defaultValue={t.fontFamily} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3">
+                      <option value="system">System</option>
+                      <option value="modern">Modern</option>
+                      <option value="classic">Classic</option>
+                    </select>
+                  </Field>
+                </div>
+              </>
+            )}
+
+            {activeTab === "organization" && (
+              <>
+                <div className="mb-6">
+                  <p className="text-xs font-bold uppercase tracking-wider text-brand-600">
+                    Based on the supplied examples
+                  </p>
+                  <h2 className="mt-1 text-2xl font-black text-ink">
+                    Company and document settings
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Every value below is editable. Verify GST and legal information
+                    before issuing documents.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Legal name"><Input name="legalName" defaultValue={p.legalName} required /></Field>
+                  <Field label="Trade name"><Input name="tradeName" defaultValue={p.tradeName} /></Field>
+                  <Field label="Proprietor / signatory"><Input name="proprietorName" defaultValue={p.proprietorName} /></Field>
+                  <Field label="Phone numbers, comma separated"><Input name="phones" defaultValue={p.phones.join(", ")} /></Field>
+                  <Field label="Address"><Input name="address" defaultValue={p.address} /></Field>
+                  <Field label="City"><Input name="city" defaultValue={p.city} /></Field>
+                  <Field label="State"><Input name="state" defaultValue={p.state} /></Field>
+                  <Field label="Postal code"><Input name="postalCode" defaultValue={p.postalCode} /></Field>
+                  <Field label="Email"><Input name="email" type="email" defaultValue={p.email} /></Field>
+                  <Field label="GSTIN"><Input name="gstin" defaultValue={p.gstin} /></Field>
+                  <Field label="PAN"><Input name="pan" defaultValue={p.pan} /></Field>
+                  <Field label="UPI ID"><Input name="upiId" defaultValue={p.upiId} /></Field>
+                  <Field label="Bank name"><Input name="bankName" defaultValue={p.bankName} /></Field>
+                  <Field label="Account number"><Input name="accountNumber" defaultValue={p.accountNumber} /></Field>
+                  <Field label="IFSC"><Input name="ifsc" defaultValue={p.ifsc} /></Field>
+                  <Field label="Document colour"><Input name="primaryColor" type="color" defaultValue={d.primaryColor} /></Field>
+                  <Field label="Quotation title"><Input name="quotationTitle" defaultValue={d.quotationTitle} /></Field>
+                  <Field label="Invoice title"><Input name="invoiceTitle" defaultValue={d.invoiceTitle} /></Field>
+                  <Field label="Product tagline"><Input name="productTagline" defaultValue={d.productTagline} /></Field>
+                  <Field label="Authorised signatory"><Input name="authorisedSignatory" defaultValue={d.authorisedSignatory} /></Field>
+                  <Field label="Delivery terms"><Input name="deliveryTerms" defaultValue={d.deliveryTerms} /></Field>
+                  <Field label="Payment terms"><Input name="paymentTerms" defaultValue={d.paymentTerms} /></Field>
+                  <Field label="Warranty terms"><Input name="warrantyTerms" defaultValue={d.warrantyTerms} /></Field>
+                  <Field label="Footer text"><Input name="footerText" defaultValue={d.footerText} /></Field>
+                </div>
+                <label className="mt-5 flex items-center gap-3 text-sm font-bold text-slate-700">
+                  <input name="showGst" type="checkbox" defaultChecked={d.showGst} className="size-4 accent-teal-700" />
+                  Show GST on documents
+                </label>
+              </>
+            )}
+
+            {message && (
+              <div className="mt-5 rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
+                {message}
+              </div>
+            )}
+            <button className="mt-6 rounded-xl bg-brand-600 px-6 py-3.5 font-bold text-white">
+              Save changes
+            </button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
