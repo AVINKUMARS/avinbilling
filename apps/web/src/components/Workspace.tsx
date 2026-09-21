@@ -230,24 +230,24 @@ function applyTheme(theme: ThemeSettings) {
   localStorage.setItem("avin_theme", JSON.stringify(theme));
 }
 
-const navItems: Array<{ key: Page; label: string; icon: typeof Gauge }> = [
+const navItems: Array<{ key: Page; label: string; icon: typeof Gauge; module?: string }> = [
   { key: "dashboard", label: "Dashboard", icon: Gauge },
-  { key: "crm", label: "CRM & Leads", icon: Target },
-  { key: "customers", label: "Customers", icon: Users },
+  { key: "crm", label: "CRM & Leads", icon: Target, module: "crm" },
+  { key: "customers", label: "Customers", icon: Users, module: "crm" },
   { key: "brands", label: "Brands & materials", icon: Tags },
   { key: "products", label: "Products", icon: Package },
   { key: "rates", label: "Rate cards", icon: CircleDollarSign },
   { key: "projects", label: "Projects", icon: Building2 },
   { key: "measurements", label: "Measurements", icon: Ruler },
   { key: "quotations", label: "Quotations", icon: FileText },
-  { key: "purchasing", label: "Purchase & inventory", icon: ShoppingCart },
-  { key: "production", label: "BOM & production", icon: Factory },
-  { key: "finance", label: "Invoices & payments", icon: ReceiptIndianRupee },
-  { key: "logistics", label: "Delivery & installation", icon: Truck },
+  { key: "purchasing", label: "Purchase & inventory", icon: ShoppingCart, module: "purchasing" },
+  { key: "production", label: "BOM & production", icon: Factory, module: "production" },
+  { key: "finance", label: "Invoices & payments", icon: ReceiptIndianRupee, module: "finance" },
+  { key: "logistics", label: "Delivery & installation", icon: Truck, module: "logistics" },
   { key: "reports", label: "Reports", icon: BarChart3 },
   { key: "costing", label: "Project costing", icon: CircleDollarSign },
   { key: "customize", label: "Custom builders", icon: WandSparkles },
-  { key: "service", label: "Service & warranty", icon: Wrench },
+  { key: "service", label: "Service & warranty", icon: Wrench, module: "service" },
   { key: "branches", label: "Branches & warehouses", icon: GitBranch },
   { key: "files", label: "Files & notifications", icon: FolderArchive },
   { key: "security", label: "Security & audit", icon: ShieldCheck },
@@ -401,6 +401,7 @@ export function Workspace({
   >([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [enabledModules, setEnabledModules] = useState<string[]>([]);
 
   useEffect(() => {
     if (!notice) return;
@@ -417,8 +418,11 @@ export function Workspace({
         localStorage.removeItem("avin_theme");
       }
     }
-    apiRequest<{ theme: ThemeSettings }>("/organization/settings")
-      .then((value) => applyTheme(value.theme))
+    apiRequest<{ theme: ThemeSettings; enabledModules: string[] }>("/organization/settings")
+      .then((value) => {
+        applyTheme(value.theme);
+        setEnabledModules(value.enabledModules);
+      })
       .catch(() => undefined);
   }, []);
 
@@ -762,7 +766,9 @@ export function Workspace({
           </div>
         </div>
         <nav className="mt-5 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-1">
-          {navItems.map(({ key, label, icon: Icon }) => (
+          {navItems
+            .filter((item) => !item.module || enabledModules.includes(item.module))
+            .map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => {
@@ -965,6 +971,13 @@ export function Workspace({
               empty="No projects yet. Add a customer first, then create a project."
             />
           )}
+          {page === "rates" && (
+            <RateCardList
+              cards={rateCards}
+              products={products}
+              onChanged={load}
+            />
+          )}
           {page === "measurements" && (
             <MeasurementList
               measurements={measurements}
@@ -972,6 +985,13 @@ export function Workspace({
               onChanged={load}
             />
           )}
+          {page === "quotations" && <QuotesList quotes={quotes} />}
+          {page === "purchasing" && <OperationsPanel kind="purchasing" user={user} products={products} />}
+          {page === "production" && <OperationsPanel kind="production" user={user} products={products} />}
+          {page === "finance" && <OperationsPanel kind="finance" user={user} products={products} />}
+          {page === "logistics" && <OperationsPanel kind="logistics" user={user} products={products} />}
+          {page === "reports" && <ReportingPanel />}
+          {page === "settings" && <SettingsPage brands={brands.length} enabledModules={enabledModules} setEnabledModules={setEnabledModules} />}
           {page === "quotations" && (
             <ComparisonWorkspace
               measurements={measurements}
@@ -2113,6 +2133,7 @@ function Dashboard({
   );
 }
 type OrganizationSettings = {
+  enabledModules: string[];
   companyProfile: {
     legalName: string;
     tradeName?: string;
@@ -2144,25 +2165,31 @@ type OrganizationSettings = {
   };
   theme: ThemeSettings;
 };
-function SettingsModules() {
-  const [modules, setModules] = useState([
-    { id: "crm", title: "CRM & Customers", desc: "Manage client database and interactions", installed: true, icon: Users },
-    { id: "purchasing", title: "Purchasing", desc: "Purchase orders and vendor management", installed: true, icon: ShoppingCart },
-    { id: "production", title: "Production", desc: "Factory operations and batch tracking", installed: false, icon: Factory },
-    { id: "finance", title: "Finance & Invoicing", desc: "Generate invoices, receipts, and track payments", installed: true, icon: ReceiptIndianRupee },
-    { id: "logistics", title: "Logistics", desc: "Delivery and installation scheduling", installed: false, icon: Truck },
-    { id: "service", title: "Service & Warranty", desc: "Ticket management and warranty claims", installed: false, icon: Wrench },
-  ]);
+function SettingsModules({ enabledModules, setEnabledModules }: { enabledModules: string[], setEnabledModules: (modules: string[]) => void }) {
   const [loading, setLoading] = useState<string | null>(null);
+  
+  const modules = [
+    { id: "crm", title: "CRM & Customers", desc: "Manage client database and interactions", installed: enabledModules.includes("crm"), icon: Users },
+    { id: "purchasing", title: "Purchasing", desc: "Purchase orders and vendor management", installed: enabledModules.includes("purchasing"), icon: ShoppingCart },
+    { id: "production", title: "Production", desc: "Factory operations and batch tracking", installed: enabledModules.includes("production"), icon: Factory },
+    { id: "finance", title: "Finance & Invoicing", desc: "Generate invoices, receipts, and track payments", installed: enabledModules.includes("finance"), icon: ReceiptIndianRupee },
+    { id: "logistics", title: "Logistics", desc: "Delivery and installation scheduling", installed: enabledModules.includes("logistics"), icon: Truck },
+    { id: "service", title: "Service & Warranty", desc: "Ticket management and warranty claims", installed: enabledModules.includes("service"), icon: Wrench },
+  ];
 
-  const toggle = (id: string) => {
+  const toggle = async (id: string) => {
     setLoading(id);
-    setTimeout(() => {
-      setModules((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, installed: !m.installed } : m))
-      );
-      setLoading(null);
-    }, 800);
+    const enabled = !enabledModules.includes(id);
+    try {
+      const response = await apiRequest<{ enabledModules: string[] }>("/organization/modules", {
+        method: "PATCH",
+        body: JSON.stringify({ id, enabled }),
+      });
+      setEnabledModules(response.enabledModules);
+    } catch (e) {
+      alert("Unable to toggle module.");
+    }
+    setLoading(null);
   };
 
   return (
@@ -2215,7 +2242,7 @@ function SettingsModules() {
   );
 }
 
-function SettingsPage({ brands }: { brands: number }) {
+function SettingsPage({ brands, enabledModules, setEnabledModules }: { brands: number, enabledModules: string[], setEnabledModules: (modules: string[]) => void }) {
   const [activeTab, setActiveTab] = useState<"organization" | "appearance" | "modules" | "packs" | "access">("organization");
   const [settings, setSettings] = useState<OrganizationSettings | null>(null);
   const [message, setMessage] = useState("");
@@ -2333,7 +2360,7 @@ function SettingsPage({ brands }: { brands: number }) {
                 Install or uninstall business capabilities and dependencies.
               </p>
             </div>
-            <SettingsModules />
+            <SettingsModules enabledModules={enabledModules} setEnabledModules={setEnabledModules} />
           </section>
         </div>
 

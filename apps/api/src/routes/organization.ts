@@ -26,8 +26,20 @@ const exampleSettings = {
 
 export const organizationRouter = Router();
 organizationRouter.use(requireAuth);
-organizationRouter.get('/settings', async (request, response, next) => { try { const organization = await Organization.findById(request.auth!.organizationId).lean(); if (!organization) { response.status(404).json({ error: { message: 'Organization not found' } }); return; } const saved = organization.settings as typeof exampleSettings | undefined; response.json({ data: { companyProfile: { ...exampleSettings.companyProfile, ...saved?.companyProfile }, documents: { ...exampleSettings.documents, ...saved?.documents }, theme: { ...exampleSettings.theme, ...saved?.theme } } }); } catch (e) { next(e); } });
+organizationRouter.get('/settings', async (request, response, next) => { try { const organization = await Organization.findById(request.auth!.organizationId).lean(); if (!organization) { response.status(404).json({ error: { message: 'Organization not found' } }); return; } const saved = organization.settings as typeof exampleSettings | undefined; response.json({ data: { enabledModules: organization.enabledModules || [], companyProfile: { ...exampleSettings.companyProfile, ...saved?.companyProfile }, documents: { ...exampleSettings.documents, ...saved?.documents }, theme: { ...exampleSettings.theme, ...saved?.theme } } }); } catch (e) { next(e); } });
 organizationRouter.patch('/settings', requirePermission('settings.update'), async (request, response, next) => { try { const input = settingsInput.parse(request.body); const data = await Organization.findByIdAndUpdate(request.auth!.organizationId, { $set: { 'settings.companyProfile': input.companyProfile, 'settings.documents': input.documents, 'settings.theme': input.theme } }, { new: true }); response.json({ data }); } catch (e) { next(e); } });
+organizationRouter.patch('/modules', requirePermission('settings.update'), async (request, response, next) => {
+  try {
+    const input = z.object({ id: z.string(), enabled: z.boolean() }).parse(request.body);
+    const update = input.enabled
+      ? { $addToSet: { enabledModules: input.id } }
+      : { $pull: { enabledModules: input.id } };
+    const data = await Organization.findByIdAndUpdate(request.auth!.organizationId, update, { new: true });
+    response.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
 
 async function seedIndustryPackExamples(
   organizationId: unknown,
