@@ -2193,48 +2193,53 @@ function SettingsModules({ enabledModules, setEnabledModules }: { enabledModules
   };
 
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {modules.map((mod) => (
         <div
           key={mod.id}
-          className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 shadow-card transition-all hover:border-brand-300 md:p-6"
+          className={`relative flex flex-col justify-between overflow-hidden rounded-3xl border bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md ${
+            mod.installed ? "border-brand-500 ring-1 ring-brand-500/20" : "border-slate-200"
+          }`}
         >
-          <div className="flex items-center gap-4">
-            <div className={`flex size-12 shrink-0 items-center justify-center rounded-2xl ${mod.installed ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-              <mod.icon size={24} />
+          {mod.installed && (
+            <div className="absolute -right-12 top-6 rotate-45 bg-brand-500 px-12 py-1 text-center text-[10px] font-bold uppercase tracking-widest text-white shadow-sm">
+              Installed
             </div>
-            <div>
-              <h3 className="text-lg font-black text-ink">{mod.title}</h3>
-              <p className="text-sm text-slate-500">{mod.desc}</p>
+          )}
+          
+          <div>
+            <div className={`mb-4 flex size-14 shrink-0 items-center justify-center rounded-2xl transition-colors duration-300 ${mod.installed ? "bg-brand-500 text-white shadow-lg shadow-brand-500/30" : "bg-slate-100 text-slate-500"}`}>
+              <mod.icon size={28} strokeWidth={mod.installed ? 2.5 : 2} />
             </div>
+            <h3 className="text-xl font-black text-ink">{mod.title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">{mod.desc}</p>
           </div>
-          <div className="flex flex-col items-end gap-2">
+          
+          <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5">
+            <span className={`text-xs font-bold uppercase tracking-wider ${mod.installed ? "text-brand-600" : "text-slate-400"}`}>
+              {mod.installed ? "Active" : "Optional"}
+            </span>
             <button
               type="button"
-              role="switch"
-              aria-checked={mod.installed}
               onClick={() => toggle(mod.id)}
               disabled={loading === mod.id}
-              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 ${
-                mod.installed ? 'bg-emerald-500' : 'bg-slate-300'
+              className={`group relative flex items-center justify-center overflow-hidden rounded-xl px-4 py-2 text-sm font-bold transition-all duration-300 disabled:opacity-70 ${
+                mod.installed
+                  ? "bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+                  : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-lg hover:shadow-slate-900/20"
               }`}
             >
-              <span className="sr-only">Toggle module</span>
               {loading === mod.id ? (
-                <div className={`inline-block size-5 transform rounded-full border-2 border-white border-t-transparent animate-spin transition duration-200 ease-in-out ${
-                  mod.installed ? 'translate-x-6' : 'translate-x-1'
-                }`} />
+                <div className="flex items-center gap-2">
+                  <div className={`size-4 animate-spin rounded-full border-2 border-t-transparent ${mod.installed ? "border-red-600" : "border-white"}`} />
+                  <span>{mod.installed ? "Removing..." : "Installing..."}</span>
+                </div>
               ) : (
-                <span
-                  className={`inline-block size-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
-                    mod.installed ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
+                <span className="relative flex items-center gap-1">
+                  {mod.installed ? "Uninstall" : "Install"}
+                </span>
               )}
             </button>
-            <span className={`text-xs font-bold ${mod.installed ? "text-emerald-600" : "text-slate-400"}`}>
-              {mod.installed ? "Active" : "Inactive"}
-            </span>
           </div>
         </div>
       ))}
