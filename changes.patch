@@ -1,0 +1,354 @@
+diff --git a/apps/api/src/routes/auth.ts b/apps/api/src/routes/auth.ts
+index 962329d..7422b1d 100644
+--- a/apps/api/src/routes/auth.ts
++++ b/apps/api/src/routes/auth.ts
+@@ -32,7 +32,8 @@ async function issueSession(response: import('express').Response, request: impor
+   const token = jwt.sign({ sub: user.id, organizationId: membership.organizationId.toString(), role: membership.role, permissions: membership.permissions, branchIds: membership.branchIds.map((id) => id.toString()) }, env.JWT_SECRET, { expiresIn: accessTokenAge });
+   const refreshToken = randomBytes(48).toString('base64url');
+   await RefreshSession.create({ userId: user._id, organizationId: membership.organizationId, tokenHash: createHash('sha256').update(refreshToken).digest('hex'), expiresAt: new Date(Date.now() + refreshMaxAge), ipAddress: request.ip, userAgent: request.get('user-agent') });
+-  response.cookie('avin_refresh', refreshToken, { httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: 'lax', maxAge: refreshMaxAge, path: '/api/v1/auth' });
++  const isProd = env.NODE_ENV === 'production';
++  response.cookie('avin_refresh', refreshToken, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', maxAge: refreshMaxAge, path: '/api/v1/auth' });
+   return token;
+ }
+ 
+diff --git a/apps/api/src/routes/brands.ts b/apps/api/src/routes/brands.ts
+index c699e6b..f9c3147 100644
+--- a/apps/api/src/routes/brands.ts
++++ b/apps/api/src/routes/brands.ts
+@@ -29,3 +29,24 @@ brandRouter.post('/', requirePermission('catalog.create'), async (request, respo
+     response.status(201).json({ data });
+   } catch (error) { next(error); }
+ });
++
++brandRouter.patch('/:id', requirePermission('catalog.create'), async (request, response, next) => {
++  try {
++    const input = brandInput.partial().parse(request.body);
++    const data = await Brand.findOneAndUpdate(
++      { _id: request.params.id, organizationId: request.auth!.organizationId },
++      { ...input, updatedBy: request.auth!.userId },
++      { new: true }
++    );
++    if (!data) return response.status(404).json({ error: { message: 'Not found' } });
++    response.json({ data });
++  } catch (error) { next(error); }
++});
++
++brandRouter.delete('/:id', requirePermission('catalog.create'), async (request, response, next) => {
++  try {
++    const data = await Brand.findOneAndDelete({ _id: request.params.id, organizationId: request.auth!.organizationId });
++    if (!data) return response.status(404).json({ error: { message: 'Not found' } });
++    response.json({ data: { _id: request.params.id } });
++  } catch (error) { next(error); }
++});
+diff --git a/apps/api/src/routes/clients.ts b/apps/api/src/routes/clients.ts
+index 25f0723..8bf46ce 100644
+--- a/apps/api/src/routes/clients.ts
++++ b/apps/api/src/routes/clients.ts
+@@ -36,3 +36,24 @@ clientRouter.post('/', requirePermission('clients.create'), async (request, resp
+     next(error);
+   }
+ });
++
++clientRouter.patch('/:id', requirePermission('clients.create'), async (request, response, next) => {
++  try {
++    const input = clientSchema.partial().parse(request.body);
++    const client = await Client.findOneAndUpdate(
++      { _id: request.params.id, ...tenantFilter(request.auth!) },
++      { ...input, updatedBy: request.auth!.userId },
++      { new: true }
++    );
++    if (!client) return response.status(404).json({ error: { message: 'Not found' } });
++    response.json({ data: client });
++  } catch (error) { next(error); }
++});
++
++clientRouter.delete('/:id', requirePermission('clients.create'), async (request, response, next) => {
++  try {
++    const client = await Client.findOneAndDelete({ _id: request.params.id, ...tenantFilter(request.auth!) });
++    if (!client) return response.status(404).json({ error: { message: 'Not found' } });
++    response.json({ data: { _id: request.params.id } });
++  } catch (error) { next(error); }
++});
+diff --git a/apps/api/src/routes/projects.ts b/apps/api/src/routes/projects.ts
+index 48170bd..5831227 100644
+--- a/apps/api/src/routes/projects.ts
++++ b/apps/api/src/routes/projects.ts
+@@ -63,6 +63,27 @@ projectRouter.post('/', requirePermission('projects.create'), async (request, re
+   } catch (error) { next(error); }
+ });
+ 
++projectRouter.patch('/:id', requirePermission('projects.update'), async (request, response, next) => {
++  try {
++    const input = projectInput.partial().parse(request.body);
++    const data = await Project.findOneAndUpdate(
++      { _id: request.params.id, ...tenantFilter(request.auth!) },
++      { ...input, updatedBy: request.auth!.userId },
++      { new: true }
++    );
++    if (!data) return response.status(404).json({ error: { message: 'Not found' } });
++    response.json({ data });
++  } catch (error) { next(error); }
++});
++
++projectRouter.delete('/:id', requirePermission('projects.update'), async (request, response, next) => {
++  try {
++    const data = await Project.findOneAndDelete({ _id: request.params.id, ...tenantFilter(request.auth!) });
++    if (!data) return response.status(404).json({ error: { message: 'Not found' } });
++    response.json({ data: { _id: request.params.id } });
++  } catch (error) { next(error); }
++});
++
+ projectRouter.post('/:id/areas', requirePermission('projects.update'), async (request, response, next) => {
+   try {
+     const input = areaInput.parse(request.body);
+diff --git a/apps/web/src/components/InstallPwaBadge.tsx b/apps/web/src/components/InstallPwaBadge.tsx
+new file mode 100644
+index 0000000..858f6da
+--- /dev/null
++++ b/apps/web/src/components/InstallPwaBadge.tsx
+@@ -0,0 +1,57 @@
++import { useEffect, useState } from "react";
++import { Download } from "lucide-react";
++
++export function InstallPwaBadge() {
++  // eslint-disable-next-line @typescript-eslint/no-explicit-any
++  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
++  const [isInstalled, setIsInstalled] = useState(false);
++
++  useEffect(() => {
++    if (window.matchMedia('(display-mode: standalone)').matches) {
++      setIsInstalled(true);
++    }
++
++    const handler = (e: Event) => {
++      e.preventDefault();
++      setDeferredPrompt(e);
++    };
++
++    window.addEventListener('beforeinstallprompt', handler);
++
++    const appInstalledHandler = () => {
++      setIsInstalled(true);
++      setDeferredPrompt(null);
++    };
++    
++    window.addEventListener('appinstalled', appInstalledHandler);
++
++    return () => {
++      window.removeEventListener('beforeinstallprompt', handler);
++      window.removeEventListener('appinstalled', appInstalledHandler);
++    };
++  }, []);
++
++  if (isInstalled || !deferredPrompt) {
++    return null;
++  }
++
++  const handleInstallClick = async () => {
++    if (!deferredPrompt) return;
++    deferredPrompt.prompt();
++    const { outcome } = await deferredPrompt.userChoice;
++    if (outcome === 'accepted') {
++      setDeferredPrompt(null);
++    }
++  };
++
++  return (
++    <button
++      onClick={() => void handleInstallClick()}
++      className="flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-100"
++      aria-label="Install App"
++    >
++      <Download size={14} />
++      <span className="hidden sm:inline">Install App</span>
++    </button>
++  );
++}
+diff --git a/apps/web/src/components/Workspace.tsx b/apps/web/src/components/Workspace.tsx
+index 9b960d4..c6ddefd 100644
+--- a/apps/web/src/components/Workspace.tsx
++++ b/apps/web/src/components/Workspace.tsx
+@@ -35,6 +35,7 @@ import { apiRequest } from "../lib/api";
+ import type { QuotePdfData } from "./QuotePdf";
+ import type { InvoicePdfData } from "./InvoicePdf";
+ import { ConnectivityBadge } from "./ConnectivityBadge";
++import { InstallPwaBadge } from "./InstallPwaBadge";
+ import { CustomBuilders } from "./CustomBuilders";
+ import {
+   IndustryPackManager,
+@@ -377,6 +378,7 @@ export function Workspace({
+     | "measurement"
+     | null
+   >(null);
++  const [editingItem, setEditingItem] = useState<any>(null);
+   const [summary, setSummary] = useState<Summary>({
+     customers: 0,
+     projects: 0,
+@@ -469,6 +471,47 @@ export function Workspace({
+     return () => window.removeEventListener("avin:data-synced", reloadAfterSync);
+   }, [load]);
+ 
++
++  async function deleteCustomer(id: string) {
++    if (!window.confirm("Are you sure you want to delete this customer?")) return;
++    try {
++      await apiRequest(`/clients/${id}`, { method: "DELETE" });
++      await load();
++    } catch (e) {
++      setError(e instanceof Error ? e.message : "Failed to delete");
++    }
++  }
++
++  async function deleteBrand(id: string) {
++    if (!window.confirm("Are you sure you want to delete this brand?")) return;
++    try {
++      await apiRequest(`/brands/${id}`, { method: "DELETE" });
++      await load();
++    } catch (e) {
++      setError(e instanceof Error ? e.message : "Failed to delete");
++    }
++  }
++
++  async function deleteProduct(id: string) {
++    if (!window.confirm("Are you sure you want to delete this product?")) return;
++    try {
++      await apiRequest(`/catalog/items/${id}`, { method: "DELETE" });
++      await load();
++    } catch (e) {
++      setError(e instanceof Error ? e.message : "Failed to delete");
++    }
++  }
++
++  async function deleteProject(id: string) {
++    if (!window.confirm("Are you sure you want to delete this project?")) return;
++    try {
++      await apiRequest(`/projects/${id}`, { method: "DELETE" });
++      await load();
++    } catch (e) {
++      setError(e instanceof Error ? e.message : "Failed to delete");
++    }
++  }
++
+   async function createCustomer(event: FormEvent<HTMLFormElement>) {
+     event.preventDefault();
+     const data = new FormData(event.currentTarget);
+@@ -477,12 +520,18 @@ export function Workspace({
+       method: "POST",
+       body: JSON.stringify(Object.fromEntries(data)),
+     });
+-    if (created && Object.keys(values).length)
+-      await apiRequest(`/customization/values/client/${created._id}`, {
+-        method: "PATCH",
+-        body: JSON.stringify({ values }),
+-      });
+-    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync G현 it will appear in the list after synchronization.");
++    let patchFailed = false;
++    if (created && Object.keys(values).length) {
++      try {
++        await apiRequest(`/customization/values/client/${created._id}`, {
++          method: "PATCH",
++          body: JSON.stringify({ values }),
++        });
++      } catch (error) {
++        patchFailed = true;
++      }
++    }
++    setNotice(patchFailed ? "Saved, but custom fields could not be saved." : (created ? "Saved successfully." : "Saved on this device. Waiting to sync G현 it will appear in the list after synchronization."));
+     setModal(null);
+     await load();
+   }
+@@ -511,12 +560,18 @@ export function Workspace({
+       method: "POST",
+       body: JSON.stringify(Object.fromEntries(data)),
+     });
+-    if (created && Object.keys(values).length)
+-      await apiRequest(`/customization/values/project/${created._id}`, {
+-        method: "PATCH",
+-        body: JSON.stringify({ values }),
+-      });
+-    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync G현 it will appear in the list after synchronization.");
++    let patchFailed = false;
++    if (created && Object.keys(values).length) {
++      try {
++        await apiRequest(`/customization/values/project/${created._id}`, {
++          method: "PATCH",
++          body: JSON.stringify({ values }),
++        });
++      } catch (error) {
++        patchFailed = true;
++      }
++    }
++    setNotice(patchFailed ? "Saved, but custom fields could not be saved." : (created ? "Saved successfully." : "Saved on this device. Waiting to sync G현 it will appear in the list after synchronization."));
+     setModal(null);
+     await load();
+   }
+@@ -612,12 +667,18 @@ export function Workspace({
+         },
+       }),
+     });
+-    if (created && Object.keys(values).length)
+-      await apiRequest(`/customization/values/measurement/${created._id}`, {
+-        method: "PATCH",
+-        body: JSON.stringify({ values }),
+-      });
+-    setNotice(created ? "Saved successfully." : "Saved on this device. Waiting to sync G현 it will appear in the list after synchronization.");
++    let patchFailed = false;
++    if (created && Object.keys(values).length) {
++      try {
++        await apiRequest(`/customization/values/measurement/${created._id}`, {
++          method: "PATCH",
++          body: JSON.stringify({ values }),
++        });
++      } catch (error) {
++        patchFailed = true;
++      }
++    }
++    setNotice(patchFailed ? "Saved, but custom fields could not be saved." : (created ? "Saved successfully." : "Saved on this device. Waiting to sync G현 it will appear in the list after synchronization."));
+     setModal(null);
+     await load();
+   }
+@@ -721,6 +782,7 @@ export function Workspace({
+           </div>
+           <div className="flex items-center gap-3">
+             <BranchSelector />
++            <InstallPwaBadge />
+             <ConnectivityBadge />
+             <div className="hidden text-sm font-bold text-slate-700 sm:block">
+               {user.name}
+@@ -808,7 +870,7 @@ export function Workspace({
+           {page === "crm" && <CrmDashboard />}
+           {page === "customers" && (
+             <Table
+-              headers={["Code", "Customer", "Phone", "Site"]}
++              headers={["Code", "Customer", "Phone", "Site", "Actions"]}
+               rows={customers.map((item) => [
+                 item.clientCode,
+                 item.name,
+@@ -820,7 +882,7 @@ export function Workspace({
+           )}
+           {page === "brands" && (
+             <Table
+-              headers={["Code", "Brand", "Company", "Category"]}
++              headers={["Code", "Brand", "Company", "Category", "Actions"]}
+               rows={brands.map((item) => [
+                 item.code,
+                 item.name,
+@@ -832,7 +894,7 @@ export function Workspace({
+           )}
+           {page === "products" && (
+             <Table
+-              headers={["Code", "Product", "Category", "Type", "Unit", "Brand"]}
++              headers={["Code", "Product", "Category", "Type", "Unit", "Brand", "Actions"]}
+               rows={products.map((item) => [
+                 item.code,
+                 item.name,
+@@ -1890,7 +1952,7 @@ function Table({
+   empty,
+ }: {
+   headers: string[];
+-  rows: string[][];
++  rows: React.ReactNode[][];
+   empty: string;
+ }) {
+   return (

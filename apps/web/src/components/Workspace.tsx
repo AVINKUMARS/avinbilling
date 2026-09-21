@@ -36,6 +36,7 @@ import { apiRequest } from "../lib/api";
 import type { QuotePdfData } from "./QuotePdf";
 import type { InvoicePdfData } from "./InvoicePdf";
 import { ConnectivityBadge } from "./ConnectivityBadge";
+import { ConfirmModal } from "./ConfirmModal";
 import { InstallPwaBadge } from "./InstallPwaBadge";
 import { CustomBuilders } from "./CustomBuilders";
 import {
@@ -380,6 +381,7 @@ export function Workspace({
     | null
   >(null);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [summary, setSummary] = useState<Summary>({
     customers: 0,
     projects: 0,
@@ -473,44 +475,60 @@ export function Workspace({
   }, [load]);
 
 
-  async function deleteCustomer(id: string) {
-    if (!window.confirm("Are you sure you want to delete this customer?")) return;
-    try {
-      await apiRequest(`/clients/${id}`, { method: "DELETE" });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete");
-    }
+  function deleteCustomer(id: string) {
+    setConfirmAction({
+      message: "Are you sure you want to delete this customer?",
+      onConfirm: async () => {
+        try {
+          await apiRequest(`/clients/${id}`, { method: "DELETE" });
+          await load();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Failed to delete");
+        }
+      }
+    });
   }
 
-  async function deleteBrand(id: string) {
-    if (!window.confirm("Are you sure you want to delete this brand?")) return;
-    try {
-      await apiRequest(`/brands/${id}`, { method: "DELETE" });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete");
-    }
+  function deleteBrand(id: string) {
+    setConfirmAction({
+      message: "Are you sure you want to delete this brand?",
+      onConfirm: async () => {
+        try {
+          await apiRequest(`/brands/${id}`, { method: "DELETE" });
+          await load();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Failed to delete");
+        }
+      }
+    });
   }
 
-  async function deleteProduct(id: string) {
-    if (!window.confirm("Are you sure you want to delete this product?")) return;
-    try {
-      await apiRequest(`/catalog/items/${id}`, { method: "DELETE" });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete");
-    }
+  function deleteProduct(id: string) {
+    setConfirmAction({
+      message: "Are you sure you want to delete this product?",
+      onConfirm: async () => {
+        try {
+          await apiRequest(`/catalog/items/${id}`, { method: "DELETE" });
+          await load();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Failed to delete");
+        }
+      }
+    });
   }
 
-  async function deleteProject(id: string) {
-    if (!window.confirm("Are you sure you want to delete this project?")) return;
-    try {
-      await apiRequest(`/projects/${id}`, { method: "DELETE" });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete");
-    }
+  function deleteProject(id: string) {
+    setConfirmAction({
+      message: "Are you sure you want to delete this project?",
+      onConfirm: async () => {
+        try {
+          await apiRequest(`/projects/${id}`, { method: "DELETE" });
+          await load();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Failed to delete");
+        }
+      }
+    });
   }
 
   async function createCustomer(event: FormEvent<HTMLFormElement>) {
@@ -1012,6 +1030,7 @@ export function Workspace({
           )}
         </div>
       </section>
+      {confirmAction && <ConfirmModal action={confirmAction} onClose={() => setConfirmAction(null)} />}
       {notice && <div role="status" className="fixed bottom-6 right-6 z-[60] max-w-sm rounded-xl bg-emerald-800 p-4 text-white shadow-xl">{notice}<button type="button" aria-label="Dismiss notification" className="ml-4" onClick={() => setNotice("")}>×</button></div>}
       {modal === "customer" && (
         <Modal title="Add customer" onClose={() => setModal(null)}>
@@ -1699,6 +1718,7 @@ function RateCardList({
   onChanged: () => Promise<void>;
 }) {
   const [message, setMessage] = useState("");
+  const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const money = (paise: number) =>
     new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -1716,16 +1736,20 @@ function RateCardList({
       );
     }
   }
-  async function remove(id: string) {
-    if (!window.confirm("Delete this draft rate card?")) return;
-    try {
-      await apiRequest(`/catalog/rate-cards/${id}`, { method: "DELETE" });
-      await onChanged();
-    } catch (problem) {
-      setMessage(
-        problem instanceof Error ? problem.message : "Unable to delete",
-      );
-    }
+  function remove(id: string) {
+    setConfirmAction({
+      message: "Delete this draft rate card?",
+      onConfirm: async () => {
+        try {
+          await apiRequest(`/catalog/rate-cards/${id}`, { method: "DELETE" });
+          await onChanged();
+        } catch (problem) {
+          setMessage(
+            problem instanceof Error ? problem.message : "Unable to delete",
+          );
+        }
+      }
+    });
   }
   if (!cards.length)
     return (
@@ -1807,6 +1831,7 @@ function RateCardList({
           </div>
         </article>
       ))}
+      <ConfirmModal action={confirmAction} onClose={() => setConfirmAction(null)} />
     </div>
   );
 }
@@ -1820,6 +1845,7 @@ function MeasurementList({
   onChanged: () => Promise<void>;
 }) {
   const [message, setMessage] = useState("");
+  const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const brandName = (id?: string) =>
     brands.find((brand) => brand._id === id)?.name;
   async function duplicate(id: string) {
@@ -1832,16 +1858,20 @@ function MeasurementList({
       );
     }
   }
-  async function remove(id: string) {
-    if (!window.confirm("Delete this measurement?")) return;
-    try {
-      await apiRequest(`/measurements/${id}`, { method: "DELETE" });
-      await onChanged();
-    } catch (problem) {
-      setMessage(
-        problem instanceof Error ? problem.message : "Unable to delete",
-      );
-    }
+  function remove(id: string) {
+    setConfirmAction({
+      message: "Delete this measurement?",
+      onConfirm: async () => {
+        try {
+          await apiRequest(`/measurements/${id}`, { method: "DELETE" });
+          await onChanged();
+        } catch (problem) {
+          setMessage(
+            problem instanceof Error ? problem.message : "Unable to delete",
+          );
+        }
+      }
+    });
   }
   async function edit(item: Measurement) {
     const location = window.prompt("Location", item.location);
@@ -1960,6 +1990,7 @@ function MeasurementList({
           </div>
         </article>
       ))}
+      <ConfirmModal action={confirmAction} onClose={() => setConfirmAction(null)} />
     </div>
   );
 }
@@ -2150,20 +2181,34 @@ function SettingsModules() {
               <p className="text-sm text-slate-500">{mod.desc}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => toggle(mod.id)}
-            disabled={loading === mod.id}
-            className={`relative flex h-10 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-bold transition-all duration-300 ${mod.installed ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-          >
-            {loading === mod.id ? (
-              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : mod.installed ? (
-              <span className="flex items-center gap-1.5"><ShieldCheck size={16} /> Installed</span>
-            ) : (
-              <span className="flex items-center gap-1.5"><Plus size={16} /> Install</span>
-            )}
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={mod.installed}
+              onClick={() => toggle(mod.id)}
+              disabled={loading === mod.id}
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 ${
+                mod.installed ? 'bg-emerald-500' : 'bg-slate-300'
+              }`}
+            >
+              <span className="sr-only">Toggle module</span>
+              {loading === mod.id ? (
+                <div className={`inline-block size-5 transform rounded-full border-2 border-white border-t-transparent animate-spin transition duration-200 ease-in-out ${
+                  mod.installed ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              ) : (
+                <span
+                  className={`inline-block size-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+                    mod.installed ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              )}
+            </button>
+            <span className={`text-xs font-bold ${mod.installed ? "text-emerald-600" : "text-slate-400"}`}>
+              {mod.installed ? "Active" : "Inactive"}
+            </span>
+          </div>
         </div>
       ))}
     </div>
@@ -2252,30 +2297,35 @@ function SettingsPage({ brands }: { brands: number }) {
   const d = settings.documents;
   const t = settings.theme;
 
-  const tabs: Array<{ id: typeof activeTab; label: string }> = [
-    { id: "organization", label: "Organization" },
-    { id: "appearance", label: "Appearance" },
-    { id: "modules", label: "Modules" },
-    { id: "packs", label: "Industry Packs" },
-    { id: "access", label: "Users & Roles" },
+  const tabs: Array<{ id: typeof activeTab; label: string; icon: any }> = [
+    { id: "organization", label: "Organization", icon: Building2 },
+    { id: "appearance", label: "Appearance", icon: WandSparkles },
+    { id: "modules", label: "Modules", icon: Layers3 },
+    { id: "packs", label: "Industry Packs", icon: Package },
+    { id: "access", label: "Users & Roles", icon: Users },
   ];
 
   return (
-    <div className="mt-7">
-      <div className="mb-8 flex flex-wrap gap-2 rounded-2xl bg-white p-2 shadow-card">
+    <div className="mt-8 flex flex-col items-start gap-8 lg:flex-row">
+      <nav className="flex w-full shrink-0 flex-row gap-2 overflow-x-auto lg:w-64 lg:flex-col lg:overflow-visible">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`rounded-xl px-5 py-3 text-sm font-bold transition-all ${activeTab === tab.id ? "bg-brand-50 text-brand-700" : "text-slate-500 hover:bg-slate-50 hover:text-ink"}`}
+            className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition-all ${
+              activeTab === tab.id
+                ? "bg-white text-brand-700 shadow-sm ring-1 ring-slate-200"
+                : "text-slate-500 hover:bg-slate-100 hover:text-ink"
+            }`}
           >
+            <tab.icon size={18} className={activeTab === tab.id ? "text-brand-600" : "text-slate-400"} />
             {tab.label}
           </button>
         ))}
-      </div>
+      </nav>
 
-      <div className="space-y-6">
-        {activeTab === "modules" && (
+      <div className="w-full min-w-0 flex-1 space-y-6">
+        <div className={activeTab === "modules" ? "block" : "hidden"}>
           <section>
             <div className="mb-6">
               <h2 className="text-2xl font-black text-ink">Software Modules</h2>
@@ -2285,27 +2335,25 @@ function SettingsPage({ brands }: { brands: number }) {
             </div>
             <SettingsModules />
           </section>
-        )}
+        </div>
 
-        {activeTab === "packs" && (
+        <div className={activeTab === "packs" ? "block" : "hidden"}>
           <section>
             <IndustryPackManager />
           </section>
-        )}
+        </div>
 
-        {activeTab === "access" && (
+        <div className={activeTab === "access" ? "block" : "hidden"}>
           <section>
             <AccessManagement />
           </section>
-        )}
+        </div>
 
-        {(activeTab === "organization" || activeTab === "appearance") && (
-          <form
-            onSubmit={save}
-            className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card md:p-8"
-          >
-            {activeTab === "appearance" && (
-              <>
+        <form
+          onSubmit={save}
+          className={`${activeTab === "organization" || activeTab === "appearance" ? "block" : "hidden"} rounded-3xl border border-slate-200 bg-white p-6 shadow-card md:p-8`}
+        >
+          <div className={activeTab === "appearance" ? "block" : "hidden"}>
                 <div className="mb-6">
                   <p className="text-xs font-bold uppercase tracking-wider text-brand-600">
                     Appearance
@@ -2350,11 +2398,9 @@ function SettingsPage({ brands }: { brands: number }) {
                     </select>
                   </Field>
                 </div>
-              </>
-            )}
+          </div>
 
-            {activeTab === "organization" && (
-              <>
+          <div className={activeTab === "organization" ? "block" : "hidden"}>
                 <div className="mb-6">
                   <p className="text-xs font-bold uppercase tracking-wider text-brand-600">
                     Based on the supplied examples
@@ -2397,19 +2443,17 @@ function SettingsPage({ brands }: { brands: number }) {
                   <input name="showGst" type="checkbox" defaultChecked={d.showGst} className="size-4 accent-teal-700" />
                   Show GST on documents
                 </label>
-              </>
-            )}
+          </div>
 
-            {message && (
-              <div className="mt-5 rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
-                {message}
-              </div>
-            )}
-            <button className="mt-6 rounded-xl bg-brand-600 px-6 py-3.5 font-bold text-white">
-              Save changes
-            </button>
-          </form>
-        )}
+          {message && (
+            <div className="mt-5 rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
+              {message}
+            </div>
+          )}
+          <button className="mt-8 rounded-xl bg-brand-600 px-6 py-3.5 font-bold text-white shadow-sm transition hover:bg-brand-700 focus:ring-4 focus:ring-brand-200">
+            Save changes
+          </button>
+        </form>
       </div>
     </div>
   );

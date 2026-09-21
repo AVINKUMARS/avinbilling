@@ -16,6 +16,7 @@ import {
   syncPendingMutations,
   type PendingMutation,
 } from "../offline/database";
+import { ConfirmModal } from "./ConfirmModal";
 
 function actionLabel(path: string) {
   const section = path.split("/").filter(Boolean)[0] ?? "record";
@@ -38,6 +39,7 @@ export function ConnectivityBadge() {
   const [open, setOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<number>();
+  const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const refresh = useCallback(async () => {
     setOnline(navigator.onLine);
@@ -207,14 +209,13 @@ export function ConnectivityBadge() {
                         )}
                         <button
                           type="button"
-                          onClick={async () => {
-                            if (
-                              window.confirm(
-                                "Discard this unsynchronized action? This cannot be undone.",
-                              )
-                            ) {
-                              await discardMutation(mutation.id);
-                            }
+                          onClick={() => {
+                            setConfirmAction({
+                              message: "Discard this unsynchronized action? This cannot be undone.",
+                              onConfirm: async () => {
+                                await discardMutation(mutation.id);
+                              }
+                            });
                           }}
                           className="rounded-lg p-2 text-red-600 hover:bg-red-50"
                           aria-label="Discard offline action"
@@ -230,6 +231,7 @@ export function ConnectivityBadge() {
           </div>
         </section>
       )}
+      <ConfirmModal action={confirmAction} onClose={() => setConfirmAction(null)} />
     </div>
   );
 }
