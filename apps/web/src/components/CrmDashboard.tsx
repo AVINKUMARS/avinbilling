@@ -17,6 +17,8 @@ export function CrmDashboard() {
   const [message, setMessage] = useState("");
   const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [lostLead, setLostLead] = useState<Lead | null>(null);
+  const [followUpLead, setFollowUpLead] = useState<Lead | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -37,15 +39,40 @@ export function CrmDashboard() {
   async function move(lead: Lead, stage: typeof stages[number]) {
     try {
       if (stage === "won") await apiRequest(`/crm/leads/${lead._id}/convert`, { method: "POST" });
-      else { const lostReason = stage === "lost" ? window.prompt("Why was this lead lost?") || "Not specified" : undefined; await apiRequest(`/crm/leads/${lead._id}/stage`, { method: "PATCH", body: JSON.stringify({ stage, lostReason }) }); }
-      await load();
+      else if (stage === "lost") setLostLead(lead);
+      else { await apiRequest(`/crm/leads/${lead._id}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) }); }
+      if (stage !== "lost") await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to update lead"); }
   }
 
-  async function addFollowUp(lead: Lead) {
-    const description = window.prompt(`Follow-up note for ${lead.name}`); if (!description) return;
-    const nextReminderAt = window.prompt("Next reminder date and time (YYYY-MM-DD HH:mm), optional");
-    try { await apiRequest(`/crm/leads/${lead._id}/follow-ups`, { method: "POST", body: JSON.stringify({ type: "call", description, nextReminderAt: nextReminderAt ? new Date(nextReminderAt).toISOString() : undefined }) }); setMessage("Follow-up recorded."); await load(); }
+  async function handleLostLead(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!lostLead) return;
+    const values = new FormData(event.currentTarget);
+    const lostReason = values.get("lostReason") || "Not specified";
+    try {
+      await apiRequest(`/crm/leads/${lostLead._id}/stage`, { method: "PATCH", body: JSON.stringify({ stage: "lost", lostReason }) });
+      setLostLead(null);
+      await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to mark lead as lost"); }
+  }
+
+  function addFollowUp(lead: Lead) {
+    setFollowUpLead(lead);
+  }
+
+  async function handleFollowUpLead(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!followUpLead) return;
+    const values = new FormData(event.currentTarget);
+    const description = String(values.get("description"));
+    const nextReminderAt = values.get("nextReminderAt") ? new Date(String(values.get("nextReminderAt"))).toISOString() : undefined;
+    try { 
+      await apiRequest(`/crm/leads/${followUpLead._id}/follow-ups`, { method: "POST", body: JSON.stringify({ type: "call", description, nextReminderAt }) }); 
+      setMessage("Follow-up recorded."); 
+      setFollowUpLead(null);
+      await load(); 
+    }
     catch (error) { setMessage(error instanceof Error ? error.message : "Unable to add follow-up"); }
   }
 
@@ -110,12 +137,12 @@ export function CrmDashboard() {
       {creating && (
         <SaveForm onSubmit={createLead} className="rounded-3xl border border-brand-200 dark:border-brand-500/30 bg-white dark:bg-slate-900 p-6 shadow-sm">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <input name="name" required placeholder="Customer name" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-            <input name="phone" required placeholder="Phone" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-            <input name="email" type="email" placeholder="Email" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-            <input name="source" placeholder="Source: referral, website…" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-            <input name="budget" type="number" min="0" step="0.01" placeholder="Expected budget ₹" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-            <input name="notes" placeholder="Requirement notes" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white sm:col-span-2" />
+            <input name="name" required placeholder="Customer name" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+            <input name="phone" required placeholder="Phone" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+            <input name="email" type="email" placeholder="Email" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+            <input name="source" placeholder="Source: referral, website…" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+            <input name="budget" type="number" min="0" step="0.01" placeholder="Expected budget ₹" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+            <input name="notes" placeholder="Requirement notes" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm sm:col-span-2" />
           </div>
           <button className="mt-5 rounded-xl bg-slate-900 dark:bg-white px-6 py-2.5 text-sm font-bold text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 transition-colors">Save lead</button>
         </SaveForm>
@@ -223,15 +250,63 @@ export function CrmDashboard() {
             </div>
             <SaveForm onSubmit={handleEditLead} className="mt-6">
               <div className="grid gap-4 sm:grid-cols-2">
-                <input name="name" required defaultValue={editingLead.name} placeholder="Customer name" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-                <input name="phone" required defaultValue={editingLead.phone} placeholder="Phone" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-                <input name="email" type="email" defaultValue={editingLead.email} placeholder="Email" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-                <input name="source" defaultValue={editingLead.source} placeholder="Source: referral, website…" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-                <input name="budget" type="number" min="0" step="0.01" defaultValue={editingLead.budget ? editingLead.budget / 100 : undefined} placeholder="Expected budget ₹" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white" />
-                <input name="notes" placeholder="Requirement notes" className="rounded-xl border border-slate-300 dark:border-white/10 bg-transparent px-4 py-3 text-slate-900 dark:text-white sm:col-span-2" />
+                <input name="name" required defaultValue={editingLead.name} placeholder="Customer name" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+                <input name="phone" required defaultValue={editingLead.phone} placeholder="Phone" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+                <input name="email" type="email" defaultValue={editingLead.email} placeholder="Email" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+                <input name="source" defaultValue={editingLead.source} placeholder="Source: referral, website…" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+                <input name="budget" type="number" min="0" step="0.01" defaultValue={editingLead.budget ? editingLead.budget / 100 : undefined} placeholder="Expected budget ₹" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+                <input name="notes" placeholder="Requirement notes" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm sm:col-span-2" />
               </div>
               <button className="mt-6 w-full rounded-xl bg-brand-600 px-5 py-3.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors shadow-sm">
                 Update lead
+              </button>
+            </SaveForm>
+          </div>
+        </div>
+      )}
+      {followUpLead && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-auto rounded-[2rem] bg-white p-6 shadow-2xl md:p-8 border border-slate-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black text-slate-900">Record Follow-up</h2>
+              <button onClick={() => setFollowUpLead(null)} className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                <X size={19} />
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-slate-500">For {followUpLead.name}</p>
+            <SaveForm onSubmit={handleFollowUpLead} className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-700">Follow-up note</label>
+                <input name="description" required placeholder="E.g. Called and left a voicemail" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-700">Next reminder (optional)</label>
+                <input name="nextReminderAt" type="datetime-local" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+              </div>
+              <button className="mt-6 w-full rounded-xl bg-brand-600 px-5 py-3.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors shadow-sm">
+                Save follow-up
+              </button>
+            </SaveForm>
+          </div>
+        </div>
+      )}
+
+      {lostLead && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-auto rounded-[2rem] bg-white p-6 shadow-2xl md:p-8 border border-slate-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black text-slate-900">Mark as Lost</h2>
+              <button onClick={() => setLostLead(null)} className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                <X size={19} />
+              </button>
+            </div>
+            <SaveForm onSubmit={handleLostLead} className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-700">Why was this lead lost?</label>
+                <input name="lostReason" required placeholder="E.g. Price too high, chose competitor..." className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+              </div>
+              <button className="mt-6 w-full rounded-xl bg-red-600 px-5 py-3.5 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-sm">
+                Confirm Lost
               </button>
             </SaveForm>
           </div>
