@@ -974,7 +974,6 @@ export function Workspace({
           {page === "rates" && (
             <RateCardList
               cards={rateCards}
-              products={products}
               onChanged={load}
             />
           )}
@@ -985,13 +984,7 @@ export function Workspace({
               onChanged={load}
             />
           )}
-          {page === "quotations" && <QuotesList quotes={quotes} />}
-          {page === "purchasing" && <OperationsPanel kind="purchasing" user={user} products={products} />}
-          {page === "production" && <OperationsPanel kind="production" user={user} products={products} />}
-          {page === "finance" && <OperationsPanel kind="finance" user={user} products={products} />}
-          {page === "logistics" && <OperationsPanel kind="logistics" user={user} products={products} />}
-          {page === "reports" && <ReportingPanel />}
-          {page === "settings" && <SettingsPage brands={brands.length} enabledModules={enabledModules} setEnabledModules={setEnabledModules} />}
+
           {page === "quotations" && (
             <ComparisonWorkspace
               measurements={measurements}
@@ -1000,7 +993,7 @@ export function Workspace({
               onSaved={load}
             />
           )}
-          {page === "settings" && <SettingsPage brands={brands.length} />}
+          {page === "settings" && <SettingsPage brands={brands.length} enabledModules={enabledModules} setEnabledModules={setEnabledModules} />}
           {page === "purchasing" && (
             <OperationsPanel
               kind="purchasing"
@@ -2264,6 +2257,7 @@ function SettingsPage({ brands, enabledModules, setEnabledModules }: { brands: n
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const input: OrganizationSettings = {
+      enabledModules: enabledModules || [],
       companyProfile: {
         legalName: String(data.get("legalName") || settings?.companyProfile.legalName || ""),
         tradeName: String(data.get("tradeName") || settings?.companyProfile.tradeName || ""),
