@@ -1888,6 +1888,7 @@ function MeasurementList({
 }) {
   const [message, setMessage] = useState("");
   const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [editingMeasurement, setEditingMeasurement] = useState<Measurement | null>(null);
   const brandName = (id?: string) =>
     brands.find((brand) => brand._id === id)?.name;
   async function duplicate(id: string) {
