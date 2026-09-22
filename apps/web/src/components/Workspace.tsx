@@ -384,9 +384,6 @@ export function Workspace({
   const activeBranchId = useAuthStore((state) => state.activeBranchId);
   const [page, setPage] = useState<Page>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    return localStorage.getItem("avin_theme_mode") === "dark";
-  });
   const [modal, setModal] = useState<
     | "customer"
     | "brand"
@@ -427,22 +424,22 @@ export function Workspace({
   }, [notice]);
 
   useEffect(() => {
-    localStorage.setItem("avin_theme_mode", isDarkMode ? "dark" : "light");
+    localStorage.removeItem("avin_theme_mode");
     const cached = localStorage.getItem("avin_theme");
     if (cached) {
       try {
-        applyTheme(JSON.parse(cached) as ThemeSettings, isDarkMode);
+        applyTheme(JSON.parse(cached) as ThemeSettings, false);
       } catch {
         localStorage.removeItem("avin_theme");
       }
     }
     apiRequest<{ theme: ThemeSettings; enabledModules: string[] }>("/organization/settings")
       .then((value) => {
-        applyTheme(value.theme, isDarkMode);
+        applyTheme(value.theme, false);
         setEnabledModules(value.enabledModules);
       })
       .catch(() => undefined);
-  }, [isDarkMode]);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -806,13 +803,6 @@ export function Workspace({
               <div className="text-sm font-bold truncate">{user.name}</div>
               <div className="truncate text-xs text-slate-500 dark:text-slate-400">{user.email}</div>
             </div>
-            <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              aria-label="Toggle theme"
-              className="ml-2 grid size-8 shrink-0 place-items-center rounded-lg bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
-            >
-              {isDarkMode ? <Sun size={15} /> : <Moon size={15} />}
-            </button>
           </div>
           <button
             onClick={onLogout}
