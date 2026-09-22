@@ -342,7 +342,7 @@ function Modal({
         const first = controls[0], last = controls[controls.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-      }} className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-3xl bg-white p-6 shadow-2xl md:p-8">
+      }} className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-3xl bg-white/60 p-6 shadow-2xl backdrop-blur-xl border border-white/40 md:p-8">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-black text-ink">{title}</h2>
           <button
@@ -754,7 +754,7 @@ export function Workspace({
   return (
     <main className="theme-app min-h-screen bg-canvas lg:grid lg:grid-cols-[260px_1fr]">
       <aside
-        className={`${menuOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} theme-sidebar h-screen w-64 flex-col overflow-hidden bg-slate-950 p-4 text-white lg:sticky lg:top-0 lg:flex`}
+        className={`${menuOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} theme-sidebar h-screen w-64 flex-col overflow-hidden bg-slate-950/60 backdrop-blur-xl border-r border-white/10 p-4 text-white lg:sticky lg:top-0 lg:flex`}
       >
         <div className="shrink-0 flex items-center gap-3 px-2 py-3">
           <div className="grid size-10 place-items-center rounded-xl bg-brand-500">

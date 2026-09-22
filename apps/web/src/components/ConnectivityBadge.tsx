@@ -113,8 +113,8 @@ export function ConnectivityBadge() {
       </button>
 
       {open && (
-        <section className="fixed inset-x-3 top-20 z-50 max-h-[75vh] overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 sm:w-[420px]">
-          <div className="flex items-start justify-between border-b border-slate-100 p-4">
+        <section className="fixed inset-x-3 top-20 z-50 max-h-[75vh] overflow-hidden rounded-2xl border border-white/40 bg-white/60 text-left shadow-2xl backdrop-blur-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 sm:w-[420px]">
+          <div className="flex items-start justify-between border-b border-slate-100/50 p-4">
             <div>
               <h2 className="font-black text-ink">Offline synchronization</h2>
               <p className="mt-1 text-xs text-slate-500">
@@ -133,7 +133,7 @@ export function ConnectivityBadge() {
             </button>
           </div>
 
-          <div className="flex items-center justify-between bg-slate-50 px-4 py-3 text-xs">
+          <div className="flex items-center justify-between bg-white/40 px-4 py-3 text-xs">
             <span className="font-semibold text-slate-600">
               {lastSynced
                 ? `Last synced ${new Date(lastSynced).toLocaleTimeString()}`

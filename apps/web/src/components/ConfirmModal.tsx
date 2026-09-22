@@ -52,7 +52,7 @@ export function ConfirmModal({
             first?.focus();
           }
         }}
-        className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
+        className="w-full max-w-md rounded-3xl bg-white/60 p-6 shadow-2xl backdrop-blur-xl border border-white/40"
       >
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-black text-ink">Confirm Action</h2>
