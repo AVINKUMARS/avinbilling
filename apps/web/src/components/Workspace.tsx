@@ -3538,6 +3538,9 @@ function OperationsPanel({
   const [data, setData] = useState<
     Record<string, unknown[] | Record<string, number>>
   >({});
+  const [addSupplierModal, setAddSupplierModal] = useState(false);
+  const [orderStockModal, setOrderStockModal] = useState<{ supplier: any; product: any } | null>(null);
+  const [allocateStockModal, setAllocateStockModal] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
   const [reportFrom, setReportFrom] = useState(
     `${new Date().getFullYear()}-01-01`,
@@ -3619,12 +3622,8 @@ function OperationsPanel({
   async function quickAdd() {
     try {
       if (kind === "purchasing") {
-        const name = window.prompt("Supplier name");
-        if (!name) return;
-        await apiRequest("/operations/suppliers", {
-          method: "POST",
-          body: JSON.stringify({ name }),
-        });
+        setAddSupplierModal(true);
+        return;
       }
       if (kind === "logistics") {
         const projectId = projects[0]?._id;
@@ -3758,36 +3757,56 @@ function OperationsPanel({
       setError(e instanceof Error ? e.message : "Unable to create credit note");
     }
   }
-  async function createPurchaseOrder() {
+  async function handleAddSupplier(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = String(new FormData(event.currentTarget).get("name"));
+    try {
+      await apiRequest("/operations/suppliers", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      setAddSupplierModal(false);
+      await loadOps();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Action failed");
+    }
+  }
+
+  function createPurchaseOrder() {
     const supplier = list("suppliers")[0];
     const product = products[0];
     if (!supplier || !product) {
       setError("Create a supplier and product first.");
       return;
     }
-    const quantity = window.prompt(`Quantity for ${product.name}`, "1");
-    const rate = window.prompt("Purchase rate per unit in rupees", "0");
-    if (!quantity || rate === null) return;
+    setOrderStockModal({ supplier, product });
+  }
+
+  async function handleOrderStock(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!orderStockModal) return;
+    const values = new FormData(event.currentTarget);
+    const quantity = Number(values.get("quantity"));
+    const rate = Number(values.get("rate"));
     try {
       await apiRequest("/operations/purchase-orders", {
         method: "POST",
         body: JSON.stringify({
-          supplierId: supplier._id,
+          supplierId: orderStockModal.supplier._id,
           projectId: projects[0]?._id ?? "",
           items: [
             {
-              catalogItemId: product._id,
-              quantity: Number(quantity),
-              unitRatePaise: Math.round(Number(rate) * 100),
+              catalogItemId: orderStockModal.product._id,
+              quantity,
+              unitRatePaise: Math.round(rate * 100),
             },
           ],
         }),
       });
+      setOrderStockModal(null);
       await loadOps();
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Unable to create purchase order",
-      );
+      setError(e instanceof Error ? e.message : "Unable to create order");
     }
   }
   async function orderPurchaseOrder(id: unknown) {
@@ -3823,26 +3842,34 @@ function OperationsPanel({
       setError(e instanceof Error ? e.message : "Unable to receive stock");
     }
   }
-  async function allocateStock(stock: Record<string, unknown>) {
+  function allocateStock(stock: Record<string, unknown>) {
     const project = projects[0];
     if (!project) {
       setError("Create a project first.");
       return;
     }
-    const quantity = window.prompt("Quantity to allocate", "1");
-    if (!quantity) return;
-    const catalog = stock.catalogItemId as Record<string, unknown> | undefined;
+    setAllocateStockModal(stock);
+  }
+
+  async function handleAllocateStock(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!allocateStockModal) return;
+    const project = projects[0];
+    if (!project) return;
+    const quantity = Number(new FormData(event.currentTarget).get("quantity"));
+    const catalog = allocateStockModal.catalogItemId as Record<string, unknown> | undefined;
     try {
       await apiRequest("/operations/inventory/allocate", {
         method: "POST",
         body: JSON.stringify({
           catalogItemId: catalog?._id,
           projectId: project._id,
-          warehouse: stock.warehouse,
-          quantity: Number(quantity),
-          unit: catalog?.unit ?? stock.unit ?? "qty",
+          warehouse: allocateStockModal.warehouse,
+          quantity,
+          unit: catalog?.unit ?? allocateStockModal.unit ?? "qty",
         }),
       });
+      setAllocateStockModal(null);
       await loadOps();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to allocate stock");
@@ -4447,6 +4474,56 @@ function OperationsPanel({
             })}
           </div>
         </section>
+
+        {addSupplierModal && (
+          <Modal onClose={() => setAddSupplierModal(false)} title="Add Supplier">
+            <SaveForm onSubmit={handleAddSupplier} className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-700">Supplier name</label>
+                <input name="name" required placeholder="E.g. ABC Corp" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+              </div>
+              <button className="mt-6 w-full rounded-xl bg-brand-600 px-5 py-3.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors shadow-sm">
+                Save Supplier
+              </button>
+            </SaveForm>
+          </Modal>
+        )}
+
+        {orderStockModal && (
+          <Modal onClose={() => setOrderStockModal(null)} title="Order Stock">
+            <p className="mt-2 text-sm text-slate-500">For {orderStockModal.product?.name} from {orderStockModal.supplier?.name}</p>
+            <SaveForm onSubmit={handleOrderStock} className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-700">Quantity</label>
+                <input name="quantity" type="number" required defaultValue="1" min="1" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-700">Purchase rate per unit (₹)</label>
+                <input name="rate" type="number" required defaultValue="0" min="0" step="0.01" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+              </div>
+              <button className="mt-6 w-full rounded-xl bg-brand-600 px-5 py-3.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors shadow-sm">
+                Create Purchase Order
+              </button>
+            </SaveForm>
+          </Modal>
+        )}
+
+        {allocateStockModal && (
+          <Modal onClose={() => setAllocateStockModal(null)} title="Allocate Stock">
+            <p className="mt-2 text-sm text-slate-500">
+              To {projects[0]?.name ?? "Project"} from {allocateStockModal.warehouse as string}
+            </p>
+            <SaveForm onSubmit={handleAllocateStock} className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-700">Quantity to allocate</label>
+                <input name="quantity" type="number" required defaultValue="1" min="1" max={Number(allocateStockModal.onHand ?? 0) - Number(allocateStockModal.allocated ?? 0)} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm" />
+              </div>
+              <button className="mt-6 w-full rounded-xl bg-brand-600 px-5 py-3.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors shadow-sm">
+                Allocate Inventory
+              </button>
+            </SaveForm>
+          </Modal>
+        )}
       </div>
     );
   if (kind === "logistics") return <div className="mt-7 space-y-5">{error && <div className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}<button onClick={() => void quickAdd()} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white">Schedule delivery / installation</button><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"><h2 className="font-black text-ink">Deliveries</h2><div className="mt-3 space-y-4">{list("deliveries").map((delivery) => { const checks = Array.isArray(delivery.packingChecklist) ? delivery.packingChecklist as Array<Record<string, unknown>> : []; return <article key={String(delivery._id)} className="rounded-xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><div><b>{String(delivery.deliveryNumber)}</b><div className="text-xs text-slate-500">{String(delivery.status)} · {String(delivery.vehicle ?? "Vehicle not assigned")} · {String(delivery.driver ?? "Driver not assigned")}</div></div>{delivery.status !== "delivered" && <button onClick={() => void advanceDelivery(delivery)} className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-bold text-white">Next stage</button>}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{checks.map((check, index) => <label key={index} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs"><input type="checkbox" checked={Boolean(check.completed)} onChange={(event) => void togglePacking(delivery._id, index, event.target.checked)} />{String(check.label)}</label>)}</div></article>; })}</div></section><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card"><div className="flex items-center justify-between"><h2 className="font-black text-ink">Installations</h2><span className="text-xs font-bold text-slate-500">{list("certificates").length} certificates</span></div><div className="mt-3 space-y-4">{list("installations").map((installation) => { const checks = Array.isArray(installation.checklist) ? installation.checklist as Array<Record<string, unknown>> : []; const snags = Array.isArray(installation.snagItems) ? installation.snagItems as Array<Record<string, unknown>> : []; return <article key={String(installation._id)} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><b>{String(installation.installationNumber)}</b><div className="text-xs text-slate-500">{String(installation.status)} · team {String(installation.assignedTeam)}</div></div><div className="flex flex-wrap gap-2"><button onClick={() => void addSnag(installation._id)} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-700">Add snag</button>{!installation.customerSignature && <button onClick={() => void signOff(installation._id)} className="rounded-lg border border-brand-600 px-3 py-2 text-xs font-bold text-brand-700">Customer sign-off</button>}{installation.status !== "completed" && <button onClick={() => void advanceInstallation(installation)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white">Next stage</button>}</div></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{checks.map((check, index) => <label key={index} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs"><input type="checkbox" checked={Boolean(check.completed)} onChange={(event) => void toggleInstallation(installation._id, index, event.target.checked)} />{String(check.label)}</label>)}</div>{snags.length > 0 && <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">{snags.length} snag item(s) recorded</div>}</article>; })}</div></section></div>;
