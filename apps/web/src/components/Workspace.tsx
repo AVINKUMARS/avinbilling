@@ -3662,13 +3662,6 @@ function OperationsPanel({
           }),
         });
       }
-      if (
-        kind === "purchasing" &&
-        products.length &&
-        list("suppliers").length
-      ) {
-        /* supplier creation is the safe first purchase step */
-      }
       await loadOps();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Action failed");
