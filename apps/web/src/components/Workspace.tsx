@@ -31,6 +31,8 @@ import {
   WandSparkles,
   X,
   Wrench,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { apiRequest } from "../lib/api";
 import type { QuotePdfData } from "./QuotePdf";
@@ -208,12 +210,24 @@ type ThemeSettings = {
   fontFamily: "system" | "modern" | "classic";
 };
 
-function applyTheme(theme: ThemeSettings) {
+function applyTheme(theme: ThemeSettings, forceDark?: boolean) {
   const root = document.documentElement;
-  root.style.setProperty("--theme-primary", theme.primaryColor);
-  root.style.setProperty("--theme-sidebar", theme.sidebarColor);
-  root.style.setProperty("--theme-background", theme.backgroundColor);
-  root.style.setProperty("--theme-surface", theme.surfaceColor);
+  const isDark = forceDark ?? root.classList.contains("dark");
+  
+  if (isDark) {
+    root.classList.add("dark");
+    root.style.setProperty("--theme-primary", theme.primaryColor);
+    root.style.setProperty("--theme-sidebar", "#020617");
+    root.style.setProperty("--theme-background", "#0f172a");
+    root.style.setProperty("--theme-surface", "#1e293b");
+  } else {
+    root.classList.remove("dark");
+    root.style.setProperty("--theme-primary", theme.primaryColor);
+    root.style.setProperty("--theme-sidebar", theme.sidebarColor || "#ffffff");
+    root.style.setProperty("--theme-background", theme.backgroundColor || "#f4f7f5");
+    root.style.setProperty("--theme-surface", theme.surfaceColor || "#ffffff");
+  }
+
   root.style.setProperty(
     "--theme-font",
     theme.fontFamily === "classic"
@@ -334,29 +348,29 @@ function Modal({
     return () => { document.body.style.overflow = overflow; previous?.focus(); };
   }, []);
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4 backdrop-blur-sm">
-      <div ref={dialog} role="dialog" aria-modal="true" aria-label={title} onKeyDown={(event) => {
-        if (event.key === "Escape" && !dialog.current?.querySelector('[aria-busy="true"]')) { event.stopPropagation(); onClose(); }
-        if (event.key !== "Tab") return;
-        const controls = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]') ?? []).filter(el => el.getAttribute('type') !== 'hidden');
-        const first = controls[0], last = controls[controls.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-      }} className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-3xl bg-white/60 p-6 shadow-2xl backdrop-blur-xl border border-white/40 md:p-8">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-black text-ink">{title}</h2>
-          <button
-            type="button"
-            aria-label="Close form"
-            onClick={onClose}
-            className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-600"
-          >
-            <X size={19} />
-          </button>
+      <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm">
+        <div ref={dialog} role="dialog" aria-modal="true" aria-label={title} onKeyDown={(event) => {
+          if (event.key === "Escape" && !dialog.current?.querySelector('[aria-busy="true"]')) { event.stopPropagation(); onClose(); }
+          if (event.key !== "Tab") return;
+          const controls = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]') ?? []).filter(el => el.getAttribute('type') !== 'hidden');
+          const first = controls[0], last = controls[controls.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }} className="max-h-[90vh] w-full max-w-xl overflow-auto rounded-3xl bg-white/60 dark:bg-slate-900/80 p-6 shadow-2xl backdrop-blur-xl border border-white/40 dark:border-white/10 md:p-8">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white">{title}</h2>
+            <button
+              type="button"
+              aria-label="Close form"
+              onClick={onClose}
+              className="grid size-10 place-items-center rounded-xl bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors"
+            >
+              <X size={19} />
+            </button>
+          </div>
+          {children}
         </div>
-        {children}
       </div>
-    </div>
   );
 }
 
@@ -370,6 +384,9 @@ export function Workspace({
   const activeBranchId = useAuthStore((state) => state.activeBranchId);
   const [page, setPage] = useState<Page>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return localStorage.getItem("avin_theme_mode") === "dark";
+  });
   const [modal, setModal] = useState<
     | "customer"
     | "brand"
@@ -410,21 +427,22 @@ export function Workspace({
   }, [notice]);
 
   useEffect(() => {
+    localStorage.setItem("avin_theme_mode", isDarkMode ? "dark" : "light");
     const cached = localStorage.getItem("avin_theme");
     if (cached) {
       try {
-        applyTheme(JSON.parse(cached) as ThemeSettings);
+        applyTheme(JSON.parse(cached) as ThemeSettings, isDarkMode);
       } catch {
         localStorage.removeItem("avin_theme");
       }
     }
     apiRequest<{ theme: ThemeSettings; enabledModules: string[] }>("/organization/settings")
       .then((value) => {
-        applyTheme(value.theme);
+        applyTheme(value.theme, isDarkMode);
         setEnabledModules(value.enabledModules);
       })
       .catch(() => undefined);
-  }, []);
+  }, [isDarkMode]);
 
   const load = useCallback(async () => {
     try {
@@ -754,15 +772,15 @@ export function Workspace({
   return (
     <main className="theme-app min-h-screen bg-canvas lg:grid lg:grid-cols-[260px_1fr]">
       <aside
-        className={`${menuOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} theme-sidebar h-screen w-64 flex-col overflow-hidden bg-slate-950/60 backdrop-blur-xl border-r border-white/10 p-4 text-white lg:sticky lg:top-0 lg:flex`}
+        className={`${menuOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} theme-sidebar h-screen w-64 flex-col overflow-hidden bg-white/60 dark:bg-slate-950/60 backdrop-blur-xl border-r border-slate-200/50 dark:border-white/10 p-4 text-slate-900 dark:text-white lg:sticky lg:top-0 lg:flex`}
       >
         <div className="shrink-0 flex items-center gap-3 px-2 py-3">
-          <div className="grid size-10 place-items-center rounded-xl bg-brand-500">
+          <div className="grid size-10 place-items-center rounded-xl bg-brand-500 text-white">
             <Layers3 size={21} />
           </div>
           <div>
             <div className="font-extrabold">Avin Business Suite</div>
-            <div className="text-xs text-slate-400">Organization workspace</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Organization workspace</div>
           </div>
         </div>
         <nav className="mt-5 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-1">
@@ -775,19 +793,30 @@ export function Workspace({
                 setPage(key);
                 setMenuOpen(false);
               }}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${page === key ? "bg-brand-600 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${page === key ? "bg-brand-600 text-white" : "text-slate-600 dark:text-slate-400 hover:bg-black/5 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white"}`}
             >
               <Icon size={18} />
               {label}
             </button>
           ))}
         </nav>
-        <div className="mt-3 shrink-0 rounded-xl bg-white/5 p-3">
-          <div className="text-sm font-bold">{user.name}</div>
-          <div className="truncate text-xs text-slate-400">{user.email}</div>
+        <div className="mt-3 shrink-0 rounded-xl bg-black/5 dark:bg-white/5 p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-bold truncate">{user.name}</div>
+              <div className="truncate text-xs text-slate-500 dark:text-slate-400">{user.email}</div>
+            </div>
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              aria-label="Toggle theme"
+              className="ml-2 grid size-8 shrink-0 place-items-center rounded-lg bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
+            >
+              {isDarkMode ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+          </div>
           <button
             onClick={onLogout}
-            className="mt-3 flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white"
+            className="mt-3 flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
           >
             <LogOut size={15} /> Sign out
           </button>
@@ -1886,25 +1915,23 @@ function MeasurementList({
       }
     });
   }
-  async function edit(item: Measurement) {
-    const location = window.prompt("Location", item.location);
-    if (!location) return;
-    const width = window.prompt("Width in millimetres", String(item.widthMm));
-    if (!width) return;
-    const height = window.prompt(
-      "Height in millimetres",
-      String(item.heightMm),
-    );
-    if (!height) return;
+  async function saveEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingMeasurement) return;
+    const data = new FormData(event.currentTarget);
+    const location = String(data.get("location"));
+    const width = Number(data.get("width"));
+    const height = Number(data.get("height"));
     try {
-      await apiRequest(`/measurements/${item._id}`, {
+      await apiRequest(`/measurements/${editingMeasurement._id}`, {
         method: "PATCH",
         body: JSON.stringify({
           location,
-          widthMm: Number(width),
-          heightMm: Number(height),
+          widthMm: Math.round(width),
+          heightMm: Math.round(height),
         }),
       });
+      setEditingMeasurement(null);
       await onChanged();
     } catch (problem) {
       setMessage(problem instanceof Error ? problem.message : "Unable to edit");
@@ -1948,8 +1975,9 @@ function MeasurementList({
             {item.status !== "locked" && (
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => void edit(item)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold"
+                  type="button"
+                  onClick={() => setEditingMeasurement(item)}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold dark:border-slate-700 dark:text-slate-200"
                 >
                   Edit size
                 </button>
@@ -2004,6 +2032,42 @@ function MeasurementList({
         </article>
       ))}
       <ConfirmModal action={confirmAction} onClose={() => setConfirmAction(null)} />
+      {editingMeasurement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form
+            onSubmit={saveEdit}
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+          >
+            <h3 className="text-lg font-black text-ink dark:text-white">Edit measurement</h3>
+            <div className="mt-4 space-y-4">
+              <Field label="Location">
+                <Input name="location" defaultValue={editingMeasurement.location} required />
+              </Field>
+              <Field label="Width in millimetres">
+                <Input name="width" type="number" defaultValue={editingMeasurement.widthMm} required />
+              </Field>
+              <Field label="Height in millimetres">
+                <Input name="height" type="number" defaultValue={editingMeasurement.heightMm} required />
+              </Field>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingMeasurement(null)}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 dark:border-slate-700 dark:text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700"
+              >
+                Save changes
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

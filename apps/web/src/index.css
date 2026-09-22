@@ -37,12 +37,7 @@ button, input, select, textarea {
   background-attachment: fixed;
   font-family: var(--theme-font, Inter, ui-sans-serif, system-ui, sans-serif);
 }
-.theme-app .theme-sidebar { 
-  background-color: color-mix(in srgb, var(--theme-sidebar, #020617) 60%, transparent) !important; 
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
-}
+
 .theme-app .bg-brand-600, .theme-app .bg-brand-500 { background-color: var(--theme-primary, #0f766e) !important; }
 .theme-app .text-brand-600, .theme-app .text-brand-700 { color: var(--theme-primary, #0f766e) !important; }
 .theme-app .border-brand-500, .theme-app .border-brand-600 { border-color: var(--theme-primary, #0f766e) !important; }

@@ -25,7 +25,7 @@ export function ConfirmModal({
   if (!action) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/45 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm">
       <div
         ref={dialog}
         role="dialog"
@@ -52,27 +52,27 @@ export function ConfirmModal({
             first?.focus();
           }
         }}
-        className="w-full max-w-md rounded-3xl bg-white/60 p-6 shadow-2xl backdrop-blur-xl border border-white/40"
+        className="w-full max-w-md rounded-3xl bg-white/60 dark:bg-slate-900/80 p-6 shadow-2xl backdrop-blur-xl border border-white/40 dark:border-white/10"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-black text-ink">Confirm Action</h2>
+          <h2 className="text-xl font-black text-slate-900 dark:text-white">Confirm Action</h2>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="grid size-10 place-items-center rounded-xl bg-slate-100 text-slate-600"
+            className="grid size-10 place-items-center rounded-xl bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors"
           >
             <X size={19} />
           </button>
         </div>
         <div className="mt-6">
-          <p className="text-base font-semibold text-slate-700">
+          <p className="text-base font-semibold text-slate-700 dark:text-slate-300">
             {action.message}
           </p>
           <div className="mt-8 flex justify-end gap-3">
             <button
               onClick={onClose}
-              className="rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-200"
+              className="rounded-xl bg-slate-100 dark:bg-white/10 px-5 py-2.5 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors"
             >
               No, Cancel
             </button>
@@ -81,7 +81,7 @@ export function ConfirmModal({
                 action.onConfirm();
                 onClose();
               }}
-              className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700"
+              className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition-colors"
             >
               Yes, Confirm
             </button>
